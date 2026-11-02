@@ -1,6 +1,6 @@
 # 살림 앱
 
-Expo SDK 57 + TypeScript로 만든 iOS/Android 앱입니다. 스토어 등록 없이 휴대폰의 Expo Go에서 개발 중인 앱을 실행합니다.
+Expo SDK 58 + TypeScript로 만든 iOS/Android 앱입니다. 스토어 등록 없이 휴대폰의 Expo Go에서 개발 중인 앱을 실행합니다.
 
 ## 실행
 
