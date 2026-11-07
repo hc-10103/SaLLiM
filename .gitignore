@@ -8,3 +8,4 @@
 .venv/
 node_modules/
 .expo/
+data/web_advice_cache.json

@@ -5,8 +5,9 @@ import os
 import httpx
 
 from ..schemas import Item
-from .base import (AssistDecision, Classification, VisionProvider, build_assist_prompt,
-                   build_prompt, parse_assist_response, parse_response)
+from .base import (AssistDecision, Classification, TipTopic, VisionProvider,
+                   build_assist_prompt, build_intent_prompt, build_prompt,
+                   parse_assist_response, parse_intent_response, parse_response)
 
 API_URL = "https://api.anthropic.com/v1/messages"
 
@@ -39,9 +40,21 @@ class ClaudeVisionProvider(VisionProvider):
 
     def assist(self, question: str | None, image: bytes | None,
                items: dict[str, Item]) -> AssistDecision:
+        return self.assist_with_intent(question, image, items, None)
+
+    def classify_intent(self, question: str | None, image: bytes | None) -> TipTopic | None:
         content = []
         if image is not None:
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
                                                      "data": base64.b64encode(image).decode()}})
-        content.append({"type": "text", "text": build_assist_prompt(items, question)})
+        content.append({"type": "text", "text": build_intent_prompt(question)})
+        return parse_intent_response(self._call(content, max_tokens=80))
+
+    def assist_with_intent(self, question: str | None, image: bytes | None,
+                           items: dict[str, Item], intent: TipTopic | None) -> AssistDecision:
+        content = []
+        if image is not None:
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                     "data": base64.b64encode(image).decode()}})
+        content.append({"type": "text", "text": build_assist_prompt(items, question, intent)})
         return parse_assist_response(self._call(content, max_tokens=1200), items)

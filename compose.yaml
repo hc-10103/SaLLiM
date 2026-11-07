@@ -1,0 +1,19 @@
+# 레포 루트에서: docker compose up --build -d
+# server/.env에는 실제 API 키를 넣고 Git에는 올리지 않는다.
+name: sallim
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    env_file: server/.env
+    environment:
+      SALLIM_WEB_CACHE_PATH: /srv/cache/web_advice_cache.json
+    volumes:
+      - web_advice:/srv/cache
+    ports:
+      - "${SALLIM_API_PORT:-8000}:8000"
+    restart: unless-stopped
+
+volumes:
+  web_advice:

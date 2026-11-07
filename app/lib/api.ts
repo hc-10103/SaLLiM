@@ -1,6 +1,6 @@
 import type {
   AskRequest, AskResponse, AssistRequest, AssistResponse, FollowUpRequest, Region, ScheduleResponse,
-  WasteAreaDetail, WasteAreaSearch,
+  WasteAreaDetail, WasteAreaSearch, ItemSummary,
 } from "./api-types";
 
 const BASE = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, ""); // 없으면 mock 모드
@@ -73,6 +73,12 @@ export function getRegions(): Promise<Region[]> {
   return isMock ? delay(MOCK_REGIONS) : http("/regions");
 }
 
+export function getItems(): Promise<ItemSummary[]> {
+  return isMock ? delay([
+    { key: "pet_bottle_clear", name: "투명 페트병", category: "투명페트", aliases: ["생수병"] },
+  ]) : http("/items");
+}
+
 export function searchWasteAreas(query: string): Promise<WasteAreaSearch> {
   return isMock ? delay({ items: [], total: 0, downloaded_on: "" })
     : http(`/waste-areas?query=${encodeURIComponent(query)}`);
@@ -95,7 +101,7 @@ export function ask(req: AskRequest): Promise<AskResponse> {
 
 export function assist(req: AssistRequest): Promise<AssistResponse> {
   if (!isMock) return post("/assist", req);
-  if (req.image_base64 || /버려|분리|재활용|쓰레기|배출/.test(req.question ?? "")) {
+  if (req.purpose === "recycling" || req.image_base64 || /버려|분리|재활용|쓰레기|배출/.test(req.question ?? "")) {
     return ask(req).then((recycling) => ({ kind: "recycling", recycling, tip: null, message: null }));
   }
   return delay({
@@ -111,6 +117,9 @@ export function assist(req: AssistRequest): Promise<AssistResponse> {
 
 export function followUp(req: FollowUpRequest): Promise<AskResponse> {
   if (!isMock) return post("/ask/followup", req);
+  if (req.item_key !== MOCK_PET.item_key) {
+    return Promise.reject(new Error("예시 모드에서는 이 품목의 지역별 안내를 새로 계산할 수 없어요."));
+  }
   const labeled = req.state.has_label;
   return delay({
     ...MOCK_PET,

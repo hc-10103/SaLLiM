@@ -1,4 +1,4 @@
-from app.providers.base import parse_assist_response
+from app.providers.base import parse_assist_response, parse_intent_response
 from app.schemas import Item, Source
 
 
@@ -18,3 +18,10 @@ def test_invalid_or_unsupported_advice_is_not_shown():
     assert parse_assist_response('{"kind":"tip","title":"x"}', ITEMS).kind == "unknown"
     decision = parse_assist_response('{"kind":"recycling","item_key":"invented","confidence":1}', ITEMS)
     assert decision.classification.item_key is None
+
+
+def test_semantic_intent_response_is_validated():
+    assert parse_intent_response('{"intent":"food"}') == "food"
+    assert parse_intent_response('{"intent":"home_cleaning"}') == "home_cleaning"
+    assert parse_intent_response('{"intent":"unsupported"}') is None
+    assert parse_intent_response('not json') is None

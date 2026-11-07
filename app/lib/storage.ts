@@ -24,7 +24,7 @@ export async function loadRecentMessages(): Promise<RecentMessage[]> {
       typeof value.id === "number" && typeof value.regionId === "string" &&
       typeof value.question === "string" &&
       value.result !== null && typeof value.result === "object" &&
-      ["recycling", "tip", "unknown"].includes(value.result.kind),
+      ["recycling", "tip", "web", "unknown"].includes(value.result.kind),
     ).slice(-MAX_RECENT_MESSAGES);
   } catch {
     return [];

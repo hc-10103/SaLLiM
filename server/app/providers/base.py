@@ -2,10 +2,13 @@
 import json
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
 from pydantic import ValidationError
 
-from ..schemas import Item, ItemState, TipAdvice
+from ..schemas import Item, ItemState, TipAdvice, WebAdvice
+
+TipTopic = Literal["recycling", "food", "home_cleaning", "laundry", "other"]
 
 
 @dataclass
@@ -35,20 +38,58 @@ class VisionProvider:
                items: dict[str, Item]) -> AssistDecision:
         raise NotImplementedError
 
+    def classify_intent(self, question: str | None, image: bytes | None) -> TipTopic | None:
+        return None
 
-def build_assist_prompt(items: dict[str, Item], question: str | None) -> str:
+    def assist_with_intent(self, question: str | None, image: bytes | None,
+                           items: dict[str, Item], intent: TipTopic | None) -> AssistDecision:
+        return self.assist(question, image, items)
+
+    def search_recycling(self, question: str | None, image: bytes | None,
+                         region_name: str) -> WebAdvice | None:
+        return None
+
+
+def build_intent_prompt(question: str | None) -> str:
+    return (
+        "사용자 질문과 사진의 실제 목적을 분류하세요. 단어 하나('씻다', '세척', '버리다')만으로 판단하지 말고 "
+        "대상과 사용자의 의도를 함께 보세요. 식재료를 씻거나 조리·섭취하는 법은 food, "
+        "집안 표면·가구·욕실을 청소하는 법은 home_cleaning, 옷·빨래는 laundry, "
+        "물건을 버리거나 분리배출하는 법은 recycling, 나머지는 other입니다. "
+        "설명 없이 JSON 하나만 답하세요: "
+        '{"intent":"recycling|food|home_cleaning|laundry|other"}. '
+        f"사용자 질문: {question or '사진의 상황을 알려줘'}"
+    )
+
+
+def parse_intent_response(text: str) -> TipTopic | None:
+    try:
+        intent = json.loads(text).get("intent")
+    except (ValueError, AttributeError, TypeError):
+        return None
+    return intent if intent in ("recycling", "food", "home_cleaning", "laundry", "other") else None
+
+
+def build_assist_prompt(items: dict[str, Item], question: str | None,
+                        intent: TipTopic | None = None) -> str:
     names = "\n".join(f"{key}: {item.name}" for key, item in items.items())
+    context = {
+        "food": "질문 의도는 식재료 세척·조리·섭취입니다. kind=tip으로 답하세요. 집안 청소 제품 사용법으로 답하지 마세요. 식재료에 가정용 세정제나 표백제를 권하지 마세요. 과일·채소 세척 질문은 물 세척을 기본으로 안내하고, 식초·베이킹소다에 담그는 방법을 필수 단계처럼 권하지 마세요.\n",
+        "home_cleaning": "질문 의도는 집안 청소입니다. 청소용 화학제품의 비율·방치 시간·새 혼합법을 제안하지 말고 제조사 표시를 따르도록 하세요. 서로 다른 세정제를 섞지 말라고 하세요.\n",
+        "laundry": "질문 의도는 의류 세탁입니다. 식재료 세척이나 집안 청소로 바꾸지 마세요.\n",
+        "recycling": "질문 의도는 물건의 배출·분리수거입니다. kind=recycling으로 답하세요.\n",
+        "other": "질문의 대상과 목적에 맞춰 답하고, 표면적으로 비슷한 단어 때문에 다른 주제로 바꾸지 마세요.\n",
+    }.get(intent, "")
     return (
         "당신은 한국의 자취·생활 도우미입니다. 사용자 질문과 사진을 보고 JSON 하나만 답하세요. "
         "사진에 여러 물건이 있으면 중심 물건을 보세요. 사진에서 보이지 않는 상태는 추측하지 마세요.\n"
         f"사용자 질문: {question or '사진 속 물건이나 생활 문제를 알려줘'}\n"
+        f"{context}"
         "분리배출 질문이나 버릴 물건 사진이면 kind=recycling. 이때 아래 목록의 item_key만 고르고, "
         "없거나 불확실하면 item_key=unknown, confidence=0. "
         "배출 방법·요일은 작성하지 마세요.\n"
         "청소, 세탁, 보관, 요리, 자취 준비 등 생활 문제면 kind=tip. "
         "짧고 실행 가능한 방법을 1~5단계로 제시하세요. 사진만으로 원인을 단정하지 마세요. "
-        "청소용 화학제품은 희석 비율·방치 시간·새로운 혼합법을 제안하지 말고 제조사 표시대로 사용하라고 하세요. "
-        "서로 다른 세정제는 섞지 말라고 명시하세요. "
         "가스 냄새·감전·화재·심각한 건강 문제 등 위험 상황은 직접 수리나 처치를 안내하지 말고 "
         "안전한 대피·전문기관 연락을 권하세요. 확인하지 않은 출처나 수치를 지어내지 마세요.\n"
         "질문이 불명확하거나 범위 밖이면 kind=unknown.\n"
@@ -88,8 +129,9 @@ STATE_GUIDE = (
     "has_contents: 내용물/액체/가스가 남아 있음, "
     "is_dirty: 음식물·고추기름·이물질로 오염됨, "
     "is_coated: 비닐·은박 코팅된 종이. "
-    "사진에서 눈으로 확실히 보일 때만 true/false. 불투명 용기 내부(캔·종이팩·튜브)나 "
-    "가려진 면처럼 사진만으로 알 수 없으면 반드시 null (추측 금지 — null이면 사용자에게 되묻는다)."
+    "사진에서 눈으로 확실히 보이거나 사용자가 글로 명시한 상태일 때만 true/false. "
+    "불투명 용기 내부(캔·종이팩·튜브)나 가려진 면처럼 확인할 수 없으면 반드시 null "
+    "(추측 금지 — null이면 사용자에게 되묻는다)."
 )
 
 DISAMBIGUATION_GUIDE = (

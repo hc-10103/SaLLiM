@@ -1,106 +1,97 @@
-# SaLLiM (살림) — 유저 테스트 수정 완료 내역 및 Codex 후속 작업 지시서
+# SaLLiM (살림) — 3차 심층 유저 테스트 리포트 및 Codex 수정 지시서
 
-> **2026-11-07 Codex 검토 추가:** 아래 1·2차 기록은 당시 스냅샷이며 현재 가이드는 26개입니다. 후속 Task 1~4는 로컬 코드에 반영했습니다. `/assist`는 복수 품목을 개별 카드로 반환하고, 물어보기 대화와 되묻기 상태는 최근 10개까지 기기에 저장합니다. 관악구 전용수거 위치 안내에는 확인된 품목별 구청 링크를 연결했습니다. 종이팩 상시 수거함 위치는 공식 목록을 확인하지 못해 표시하지 않습니다. 앱 아이콘과 네이티브 스플래시 설정은 적용했으며 스플래시 확인에는 새 앱 빌드가 필요합니다. `server/.env`와 Python 캐시는 Git 추적에서 제거된 상태입니다. 과거 커밋의 `server/.env`에는 실제 API 키가 들어 있지 않은 것을 확인했습니다.
-
-> **작성일**: 2026-11-07
-> **현재 검증 상태**:
-> - 백엔드 테스트: `cd server && .venv/bin/python -m pytest -q` → **45 passed**
+> **작성일**: 2026-11-08
+> **대상 버전**: Tech Trust v2 개편 반영본 (온보딩 · 5탭 구조 · 복수 품목 매칭 · 웹 검색 캐시 · 되묻기 바텀시트 포함)
+> **현재 기본 검증 상태**:
+> - 백엔드 테스트: `cd server && .venv/bin/python -m pytest -q` → **69 passed**
 > - 프론트엔드 타입 검사: `cd app && npx tsc --noEmit` → **0 errors**
 > - 프론트엔드 린트: `cd app && npx expo lint` → **0 errors / 0 warnings**
 
-## 1. 지금까지 진행 완료된 작업 요약 (1차 버그 수정 + 2차 UX·콘텐츠 개편)
+## 1. 3차 테스트에서 발견된 미작동 기능 및 진입 불가 화면 (Broken / Dead Features)
 
-### 1-1. 백엔드 (`server/`) 및 공통 API 계약 (`shared/api-types.ts`, `app/lib/api-types.ts`)
+| 우선순위 | 대상 파일 | 증상 (유저 테스트 재현 결과) | 원인 분석 |
+| :--- | :--- | :--- | :--- |
+| **P0 (진입 불가)** | `app/app/items.tsx`, `app/app/(tabs)/index.tsx`, `app/app/(tabs)/ask.tsx` | **67개 품목 사전 화면(`/items`, `버릴 물건 찾아보기`)이 고립되어 앱 내 어디에서도 진입할 수 없음** | `app/app/items.tsx` 화면과 백엔드 `GET /items` 엔드포인트가 구현되어 있으나, 홈(`index.tsx`)·물어보기(`ask.tsx`)·찍기(`CaptureScreen.tsx`) 어디에도 `router.push("/items")`로 연결되는 버튼이나 진입점이 없음 |
+| **P1 (미작동)** | `server/app/assemble.py`, `data/regions/seoul-gwanak.json` | **관악구에서 `대형폐기물`(의자·매트리스·솜이불)이나 `종이팩`(우유팩·멸균팩)을 물어봐도 하단 `우리 동네 전용수거함` 박스가 전혀 표시되지 않음** | `seoul-gwanak.json`의 `drop_off_points`에는 `type: "대형폐기물"`([스마트클린 관악](https://smartclean.gwanak.go.kr)) 항목이 존재하지만 `assemble.py`의 `DROP_OFF_TYPES`에 `"furniture_large": "대형폐기물"`, `"duvet_blanket": "대형폐기물"` 매핑이 누락됨. 반대로 `DROP_OFF_TYPES`에는 `"milk_carton": "종이팩"`, `"aseptic_carton": "종이팩"`, `"paper_cup": "종이팩"`이 매핑되어 있으나 정작 `seoul-gwanak.json`의 `drop_off_points` 배열에 `"type": "종이팩"` 항목이 빠져 있음 |
+| **P1 (오작동)** | `app/app/guides.tsx`, `app/components/GuideCard.tsx` | **생활 가이드 목록에서 카드 우측 `✦(AI 질문)` 아이콘을 누르면 내 상황을 입력하는 화면으로 가는 대신, 다짜고짜 1번 예시 질문(예: 치킨 질문)을 `/ask`에서 강제 전송해 버림** | `app/app/guides.tsx` 46행에서 `onAsk` 핸들러가 `router.push({ pathname: "/guide/[id]", params: { id: guide.id, ask: "1" } })` 대신 `router.push({ pathname: "/ask", params: { q: guide.examples?.[0] || ... } })`를 호출하도록 작성되어, 가이드 컨텍스트 없이 고정 질문이 즉시 발송됨 |
+| **P2 (미작동)** | `app/app/guides.tsx`, `app/app/favorite/[key].tsx` | **웹에서 `/guides`나 `/favorite/[key]`를 새로고침하거나 URL로 직접 열었을 때 상단 `‹ 돌아가기` 버튼이 작동하지 않음** | `router.canGoBack()` 분기 없이 `router.back()`만 호출하고 있음. 또한 홈(`index.tsx`)의 '즐겨찾는 품목' 가로 리스트에서 클릭해 진입해도 상단 문구가 `"즐겨찾기로 돌아가기"`로 고정 표기됨 |
+| **P2 (오작동)** | `app/lib/api.ts`, `app/app/favorite/[key].tsx` | **모크(오프라인) 모드에서 건전지·유리병 등을 즐겨찾기한 뒤 지역을 변경하면 즐겨찾기 상세가 무조건 '투명 페트병'으로 바뀜** | `app/lib/api.ts`의 `followUp()` 모크 구현이 `req.item_key`를 무시하고 항상 `MOCK_PET`을 반환함 |
 
-1. **공식 관리구역(`area_id`) 기반 배출 요일·시간 자동 연동**
-   - **수정 파일**: `shared/api-types.ts`, `app/lib/api-types.ts`, `server/app/schemas.py`, `server/app/assemble.py`, `server/app/main.py`
-   - **변경 내용**:
-     - `AskRequest`(및 `AssistRequest`)와 `FollowUpRequest`에 선택 필드 `area_id?: string` 추가.
-     - 관악구 외 지역(`region_id: "nationwide"`)을 선택한 유저라도 `area_id`([공공데이터포털 행정안전부 생활쓰레기배출정보](https://www.data.go.kr/data/15155080/openapi.do) 관리구역 ID)가 함께 전달되면, 품목 카테고리(`일반쓰레기` → `general_days`/`general_start~end`, `음식물` → `food_days`/`food_start~end`, 8대 재활용 품목 → `recycling_days`/`recycling_start~end`)에 맞춰 `next_days`, `time`, `note`, `sources`를 자동 조립하도록 구현.
-     - `/assist` 요청에서 이미지 없이 명확한 분리배출 키워드(`버려`, `분리`, `재활용`, `쓰레기`, `배출`)와 단일 품목이 매칭될 경우 LLM 호출 전 `match_text()`로 즉시 정확한 공식 데이터를 반환하는 빠른 경로(Fast-path) 추가.
-2. **파손 상태 오분류 방지 및 가이드 컨텍스트 간섭 차단**
-   - **수정 파일**: `server/app/match.py`, `server/app/providers/mock.py`, `server/tests/test_match.py`
-   - **변경 내용**:
-     - `"유리병이 깨졌는데 어떻게 버려요?"`, `"맥주병 깨졌어"` 등 파손 키워드(`깨진`, `깨졌`, `깨져`, `박살`, `금간`, `산산조각`)가 포함된 유리·병·거울·컵 질문이 일반 `glass_bottle`로 매칭되지 않고 `broken_glass`(깨진 유리·특수종량제)로 우선 매칭되도록 개선.
-     - `"형광등이 깨졌어"`처럼 파손된 형광등 질문이 `fluorescent_lamp`(깨지지 않은 것 전용수거)로 오매칭되지 않도록 차단.
-     - 가이드 상세 화면(`app/app/guide/[id].tsx`)에서 `내 상황과 질문:` 접두어로 감싸 보낸 질문의 경우, 앞부분 가이드 요약에 포함된 단어 때문에 엉뚱한 품목으로 매칭되지 않도록 `extract_user_question()`으로 실제 사용자 질문만 분리해 매칭.
-3. **공공데이터 오타 정제**
-   - **수정 파일**: `server/app/waste_data.py`, `server/tests/test_waste_areas.py`
-   - **변경 내용**: 관악구 등 행정안전부 스냅샷 원본의 `"투병한 비닐에 분리배출"` 오타를 로드 시점에 `"투명한 비닐에 분리배출"`로 정제.
+## 2. 다양한 시나리오 테스트에서 적발된 `match_multiple_texts` & `/assist` 오작동 케이스
 
-### 1-2. 프론트엔드 (`app/`) 화면 재배치·추가·수정·삭제
+전수 테스트 결과, 새로 도입된 `match_multiple_texts` (`server/app/match.py`) 및 `/assist` 분기 (`server/app/main.py` 155~165행)에서 **일반 생활 팁 질문이나 단일 품목 질문을 '2개 품목 분리배출 질문(`recycling_list`)'으로 잘못 쪼개는 치명적 오작동**이 확인되었습니다.
 
-1. **홈 화면 (`app/app/(tabs)/index.tsx`)**
-   - **통합·삭제**: 관악구 선택 시 행안부 카드(`area`)와 주간 일정 카드(`weekly`)가 2개로 중복 노출되던 문제를 단일 카드로 통합하고, 하단의 중복 주의 문구 삭제.
-   - **추가**:
-     - 모든 지역 관리구역 카드 상단에 **오늘 요일 기준 배출 가능 품목 브리핑 배지**(`오늘(토)은 정기 배출 품목이 없는 날이에요` / `오늘(월) 배출 가능: 일반쓰레기 · 음식물 · 재활용품`) 추가.
-     - `무엇이 궁금하세요?` 아래에 **자주 헷갈리는 품목 원터치 질문 칩 6종**(`🍗 치킨뼈·계란껍데기`, `🧊 아이스팩`, `📦 택배상자`, `🥤 배달용기`, `🔋 건전지`, `💊 남은 약`)을 배치해 터치 시 `/ask?q=...`로 즉시 질문 실행.
-2. **물어보기 화면 (`app/app/(tabs)/ask.tsx`)**
-   - **재배치**: 기존에 `ScrollView` 맨 아래에 묻혀 있던 `TextInput`과 `질문 보내기` 버튼을 **`KeyboardAvoidingView` 기반 하단 고정 입력 바(`[입력창] [보내기]`)**로 분리·재배치.
-   - **수정·추가**:
-     - `onContentSizeChange`마다 무조건 맨 아래로 점프해 긴 답변의 상단이 잘리던 문제를 해결(`shouldScroll` ref로 새 질문 등록 시에만 스크롤).
-     - 홈 화면 칩 등에서 전달된 `?q=` 쿼리 파라미터 자동 실행 지원 및 상단 `대화 비우기` 버튼, 선택 지역 원터치 변경 바 추가.
-3. **생활 가이드 목록 (`app/app/(tabs)/guides.tsx`) 및 상세 (`app/app/guide/[id].tsx`, `app/lib/guides.ts`)**
-   - **재배치**: 2×2 큰 주제 박스를 상시 노출되는 **가로 카테고리 필터 칩(`전체 22`, `🍱 음식 7`, `🧺 청소·세탁 4`, `♻️ 분리배출 6`, `🏠 집·안전 5`)**과 검색어 지우기(`✕`) 버튼으로 개편.
-   - **추가·수정**:
-     - 모든 가이드 상세 화면에 하드코딩되어 있던 `"예: 냉장고에 하루 뒀는데 먹어도 될까요?"` 문구를 제거하고, 22개 각 가이드 주제에 맞는 **맞춤형 연관 질문 칩 2개씩(총 44개, 터치 시 즉시 AI 질문)**으로 교체.
-     - 가이드 상세 하단에 **같은 주제의 추천 가이드 2개** 섹션 추가 및 `?ask=1` 진입 시 입력창 `autoFocus` 적용, AI 답변 수신 후 렌더링 완료 시점에 맞춘 자동 스크롤 수정.
-     - [서울특별시 분리배출 기준](https://news.seoul.go.kr/env/archives/564022) 출처 기반으로 **`싱크대 배수구 냄새·물때 줄이기`(`sink-drain`)**와 **`다 쓴 건전지와 전구 버리는 법`(`bulb-battery`)** 가이드 2종 신규 추가.
-4. **내 지역 설정 (`app/app/(tabs)/settings.tsx`)**
-   - **버그 수정**: 검색창에 검색어를 입력한 채 `지역별 요일 없이 전국 공통 안내 사용` 버튼을 누르면 검색어가 지역명으로 저장되던 버그를 `"전국 공통 안내"` 고정 저장으로 수정.
-   - **추가**: 복수 관리구역 시·군·구 선택 시 구역명 병기(`서울특별시 서초구 (방배2동)`), 선택된 지역 카드 내 **`홈에서 일정 보기 ›` 이동 버튼** 추가, 검색창 하단 **주요 지역 원터치 검색 칩 6종** 추가.
-5. **카메라 (`app/app/capture.tsx`) 및 결과 카드 (`app/components/ResultCard.tsx`, `app/components/WasteAreaCard.tsx`)**
-   - **추가·재배치**: `capture.tsx`에서 사진 선택 시 검은 빈 아이콘 박스 대신 **실제 선택한 사진 미리보기(`Image`)**를 표시하고, `사진 찍기` / `앨범에서 고르기` 버튼을 좌우 2열로 재배치.
-   - **수정**:
-     - `capture.tsx`, `guide/[id].tsx` 상단 뒤로가기 문구를 `‹ 이전 화면으로`로 통일하고 웹 직접 진입 시(`!router.canGoBack()`) 안전하게 홈/가이드 목록으로 이동하도록 fallback 처리.
-     - `ResultCard.tsx`에서 요약문(`answer`)에 이미 포함된 문장이 `steps`에 중복 출력되지 않도록 필터링하고, 되묻기(`follow_up`) 응답 중 중복 클릭 방지(`busy`) 및 응답 완료 배지(`✓ 라벨·스티커 부착: 예`) 표시, 현재 경로(`/ask`, `/capture`)와 중복되는 재시도 버튼 숨김 처리.
-     - `ResultCard.tsx` 및 `WasteAreaCard.tsx`의 출처([식품안전나라](https://www.foodsafetykorea.go.kr/portal/board/boardDetail.do?bbs_no=bbs401&menu_grp=MENU_NEW02&menu_no=4419&ntctxt_no=1068743), [한국소비자원](https://www.kca.go.kr/home/sub.do?menukey=4004&mode=view&no=1003585726&page=67), [주택도시보증공사](https://m.khug.or.kr/jeonse/web/s03/s030103.jsp), [공공데이터포털](https://www.data.go.kr/data/15155080/openapi.do) 등)에 클릭 가능한 링크 스타일과 `↗` 아이콘 적용.
+### 2-1. 재현된 오작동 테스트 케이스 표
 
-## 2. Codex가 이어서 진행하면 좋을 후속 작업 지시서 (우선순위순)
+| 카테고리 | 테스트 입력 질문 | 기대 결과 | 실제 오작동 결과 (`match_multiple_texts`) |
+| :--- | :--- | :--- | :--- |
+| **생활·요리·세탁 팁 질문 가로채기** | `"남은 찌개를 냄비째 냉장고에 넣어도 괜찮나요?"` (`leftovers` 가이드 예시) | 음식 보관 `tip` 카드 | `['frying_pan_pot', 'large_appliance']` (냄비 고철 배출 + 냉장고 대형폐가전 배출 카드 2개 출력) |
+| **생활·요리·세탁 팁 질문 가로채기** | `"흰 티셔츠에 김치 국물이 튀었는데 어떻게 세탁해요?"` (`laundry` 가이드 예시) | 세탁 `tip` 카드 | `['clothing', 'food_waste']` (헌 옷 의류수거함 + 음식물쓰레기 배출 카드 2개 출력) |
+| **생활·요리·세탁 팁 질문 가로채기** | `"전자레인지랑 에어프라이어를 같은 멀티탭에 꽂아도 되나요?"` (`power` 가이드 예시) | 전기 안전 `tip` 카드 | `['large_appliance', 'small_appliance']` (대형폐가전 + 소형폐가전 배출 카드 2개 출력) |
+| **단일 물건의 부속·라벨 오분리** | `"페트병에 비닐 라벨이 붙어있는데 어떻게 버려요?"` | `pet_bottle_clear` 단일 카드 (`has_label=True`) | `['pet_bottle_clear', 'plastic_bag']` (투명 페트병 + 비닐봉지·뽁뽁이 카드 2개 출력, `has_label` 상태 누락) |
+| **단일 물건의 부속·라벨 오분리** | `"배달 용기 윗면에 붙은 비닐이 안 떼어지는데 어떡하죠?"` (`plastic` 가이드 예시) | `plastic_container` 단일 안내 또는 `tip` | `['plastic_container', 'plastic_bag']` (배달용기 + 비닐봉지 카드 2개 출력) |
+| **단일 물건의 부속·라벨 오분리** | `"택배 상자에 테이프랑 송장 스티커 붙어있는데 어떻게 버려요?"` | `cardboard_box` 단일 카드 (`has_label=True`) | `['cardboard_box', 'box_tape_sticker']` (상자 + 테이프 2개로 분리, `has_label` 상태 추론 누락) |
+| **질문 끝의 배출 분류명 오인식** | `"테이크아웃 아이스커피 플라스틱 컵도 투명페트로 버려요?"` (`pet` 가이드 예시) | `plastic_cup_takeout` 단일 카드 | `['plastic_cup_takeout', 'pet_bottle_clear']` (질문한 분류명 `'투명페트'`를 두 번째 물건으로 오인) |
+| **질문 끝의 배출 분류명 오인식** | `"일회용 종이컵은 일반 종이류인가요, 종이팩인가요?"` (`paper-carton` 가이드 예시) | `paper_cup` 단일 카드 | `['paper_cup', 'milk_carton']` (분류명 `'종이팩'`을 우유팩으로 오인) |
+| **질문 끝의 배출 분류명 오인식** | `"은박 보냉백(보냉 파우치)은 비닐류인가요, 일반쓰레기인가요?"` (`ice-pack` 가이드 예시) | `insulated_cooler_bag` 단일 카드 | `['insulated_cooler_bag', 'plastic_bag']` (분류명 `'비닐류'`의 `'비닐'`을 비닐봉지로 오인) |
+| **용기·조리도구·세척 맥락 오인식** | `"프라이팬에 남은 식용유(폐식용유)는 어떻게 버려요?"` (`sink-drain` 가이드 예시) | `cooking_oil` 단일 카드 | `['frying_pan_pot', 'cooking_oil']` (식용유가 담긴 `'프라이팬'`까지 버릴 고철로 인식) |
+| **용기·조리도구·세척 맥락 오인식** | `"빈 페트병에 폐식용유 담아서 어떻게 버려요?"` | `cooking_oil` 단일 카드 | `['pet_bottle_clear', 'cooking_oil']` (폐식용유를 담는 통으로 언급한 `'페트병'`까지 별도 품목으로 인식) |
+| **용기·조리도구·세척 맥락 오인식** | `"다 먹은 참치캔이나 스팸캔은 기름을 어떻게 씻어서 버려요?"` (`opened-can` 가이드 예시) | `steel_can_food` 단일 카드 | `['steel_can_food', 'cooking_oil']` (`_context_only_alias`에 `'씻'` 패턴이 없어 `'기름'`을 폐식용유로 오인) |
 
-아래 작업들은 아키텍처 확장이나 추가 데이터·기능 고도화가 필요한 항목들입니다. Codex에게 원하는 번호를 지정해 바로 지시할 수 있습니다.
+## 3. Codex 작업 지시서 (우선순위순 구현 가이드)
 
-### Task 1. 복수 품목 동시 질문 처리 지원 (`server/app/match.py`, `server/app/main.py`, `app/components/AssistCard.tsx`)
-- **배경 및 문제**: 사용자가 `"우유팩이랑 멸균팩 같이 버려도 돼?"`, `"소주병이랑 맥주캔 어떻게 버려?"`, `"양파껍질이랑 계란껍질 음식물이야?"`처럼 한 질문에 두 가지 이상의 품목을 동시에 물어볼 때, 현재 `match_text()`는 가장 긴 별칭 길이가 동점이면 모호성 방지를 위해 `None`을 반환합니다. 그 결과 분리배출 질문임에도 공식 `recycling` 카드가 아닌 일반 AI `tip` 카드로 빠지거나 `unknown`이 반환됩니다.
-- **구현 지시사항**:
-  1. `server/app/match.py`에 `match_multiple_texts(question: str, items: dict[str, Item], max_items: int = 3) -> list[str]` 함수를 추가하되, 기존 단일 매칭 함수 `match_text()`의 시그니처와 동작(`test_ambiguous_returns_none` 통과)은 그대로 유지할 것.
-  2. 한 문장에서 2~3개의 품목이 명확히 감지된 경우, `AssistResponse`에 선택 필드 `recycling_list?: AskResponse[]`(또는 주 품목 `recycling` + 추가 품목 배열)를 내려주어 프론트엔드 `AssistCard.tsx`에서 각각의 공식 분리배출 카드를 순서대로 렌더링할 것.
-  3. `server/tests/test_api.py`에 `"우유팩이랑 멸균팩 어떻게 버려?"` 요청 시 두 품목의 배출 안내가 모두 포함되는지 검증하는 테스트를 추가할 것.
+아래 Task 1 ~ Task 5를 순서대로 수정하고, 모든 변경 후 `pytest`, `tsc --noEmit`, `expo lint`가 통과하는지 확인해 주세요.
 
-### Task 2. 물어보기(`ask.tsx`) 대화 기록 로컬 저장 (`AsyncStorage`) 및 복원
-- **배경 및 문제**: 현재 `app/app/(tabs)/ask.tsx`의 `messages` 상태는 컴포넌트 메모리(`useState`)에만 있어서, 앱을 새로고침하거나 다른 화면을 다녀오면서 리마운트되면 방금 물어본 분리배출·생활 팁 답변 내역이 사라집니다.
-- **구현 지시사항**:
-  1. `@react-native-async-storage/async-storage`를 사용해 최근 대화 최대 10개(`salim_recent_messages_v1`)를 저장·복원하도록 `app/lib/storage.ts`(또는 `ask.tsx` 내부 훅)를 구현할 것.
-  2. 상단 `대화 비우기` 버튼을 누르면 `AsyncStorage`에 저장된 기록도 함께 삭제되도록 연동할 것.
+### Task 1. [P0] 백엔드 `/assist` 및 `match_multiple_texts` 오탐지 버그 수정 (`server/app/main.py`, `server/app/match.py`)
 
-### Task 3. 관악구 공식 출처 세부 URL 보강 및 전용수거함(`drop_off_points`) 화면 노출
-- **배경 및 문제**:
-  1. `data/regions/seoul-gwanak.json`에는 이미 `drop_off_points`(폐건전지·폐형광등·종이팩·폐의약품·의류수거함 위치 안내) 데이터가 들어 있으나, 현재 `server/app/schemas.py`의 `AskResponse`나 프론트엔드 `ResultCard.tsx`에서 `drop_off_points`를 화면에 표시하지 않고 있습니다.
-  2. `REPORT.md`에 기록된 것처럼 `data/regions/seoul-gwanak.json`의 `sources` URL이 루트 도메인(`https://www.gwanak.go.kr`)으로 되어 있어 세부 안내 페이지 연결이 필요합니다.
-- **구현 지시사항**:
-  1. `item.category == "전용수거"` 또는 `"종이팩"`인 품목을 질의할 때, 해당 `RegionData`의 `drop_off_points`를 `AskResponse`의 `drop_off_points`(선택 필드)로 포함해 내려주고 `ResultCard.tsx` 하단에 **"📍 우리 동네 전용수거함 위치"** 박스로 표시할 것.
-  2. `server/tests/test_assemble.py`에 전용수거 품목 질의 시 `drop_off_points`가 포함되는지 테스트를 추가할 것.
+1. **`server/app/main.py` (155~165행)**:
+   - 현재 `if image is None and req.question and (intent is None or text_recycling_intent):` 조건 때문에 `intent is None`인 프로바이더(`MockVisionProvider` 등)에서는 분리배출 키워드가 전혀 없는 요리·세탁·전기 질문(`"남은 찌개를 냄비째 냉장고에 넣어도 괜찮나요?"` 등)도 무조건 `match_multiple_texts`를 타게 됩니다. 또한 가이드 상세(`"내 상황과 질문:" in req.question`) 질문도 가로채고 있습니다.
+   - `match_multiple_texts` 빠른 경로 역시 단일 매칭과 동일하게 **`"내 상황과 질문:" not in req.question`이고 `text_recycling_intent`가 `True`일 때만**(또는 명확한 복수 품목 접속사 `이랑`, `하고`, `과`, `와`, `및`, `,`가 있고 분리배출 의도일 때만) 동작하도록 조건을 강화할 것.
+   - `recycling_list`를 조립할 때도 단일 매칭과 동일하게 `infer_text_state(req.question, store.items[key])`를 전달해 오염·라벨 상태가 반영되게 할 것.
+2. **`server/app/match.py`**:
+   - **배출 분류명 질문 제외**: 현재 `key == "food_waste" and term == "음식물"`에 대해서만 `("이야", "인가", "이에요", "입니까", "로")` 접미어를 제외하고 있음. `"투명페트로 버려요?"`, `"종이팩인가요?"`, `"비닐류인가요?"`처럼 분류(카테고리) 이름을 묻는 서술어(`로버려`, `으로버려`, `인가`, `이야`, `류인가`, `맞나` 등)가 바로 뒤에 붙는 경우(`term in ("투명페트", "플라스틱", "종이", "종이팩", "유리병", "비닐")`), 이를 두 번째 배출 물건으로 잡지 않도록 제외 규칙을 일반화할 것.
+   - **단일 물건의 부속·오염·용기 맥락 제외 (`_context_only_alias` 및 `infer_text_state`)**:
+     - `_context_only_alias`에서 `key == "cooking_oil" and term == "기름"` 정규식에 `씻|세척|닦|제거|비우`를 추가해 `"참치캔 기름을 어떻게 씻어서"`가 `cooking_oil`로 잡히지 않게 할 것.
+     - 문장에 `폐식용유`나 `식용유`가 명시된 경우, 이를 담거나 조리하던 용기(`프라이팬에 남은`, `빈 페트병에 담아`)가 별도 배출 품목으로 잡히지 않도록 처리할 것.
+     - 문장에 주 용기(`페트병`, `배달 용기`, `택배 상자`, `택배 박스`)와 그 부속물(`비닐 라벨`, `윗면에 붙은 비닐`, `테이프`, `송장`, `스티커`)이 함께 등장하고 `"붙어"`, `"안 떼어"`, `"떼고"` 등의 표현이 있으면 별도 물건 2개로 쪼개지 말고 주 용기 단일 품목 + `state.has_label = True`로 추론(`infer_text_state` 확장)할 것.
+   - `server/tests/test_api.py` 및 `server/tests/test_match.py`에 위 12개 오작동 케이스에 대한 회귀 테스트를 추가할 것.
 
-### Task 4. 디자인 에셋(앱 아이콘·스플래시) 적용 및 Git 워킹트리 정리
-- **배경 및 문제**:
-  1. `docs/design/brand/`에 디자인된 앱 아이콘과 스플래시 시안이 있으나 `app/assets/` 및 `app/app.json`에는 아직 기본 플레이스홀더 에셋이 연결되어 있습니다.
-  2. Git 워킹트리에 삭제된 구버전 `.pyc` 캐시 파일들과 `server/.env` 변경분이 남아 있습니다.
-- **구현 지시사항**:
-  1. `docs/design/brand/`의 확정된 아이콘·스플래시 에셋을 `app/assets/`에 반영하고 `app/app.json` 설정을 점검할 것.
-  2. `.gitignore`에 `__pycache__/`, `*.pyc`, `.env`, `.env.local`이 모두 포함되어 있는지 확인하고 `git rm --cached`로 불필요한 추적 파일을 정리할 것.
+### Task 2. [P0] 고립된 품목 사전 화면(`/items`) 진입점 연결 및 홈 빠른 질문 칩 유지 (`app/app/(tabs)/index.tsx`, `app/app/(tabs)/ask.tsx`, `app/components/CaptureScreen.tsx`)
 
-## 3. Codex에게 바로 붙여넣을 프롬프트
+1. **품목 사전(`/items`) 진입 버튼 추가**:
+   - `app/app/(tabs)/index.tsx`(홈 화면): 주 동작 버튼 영역 또는 `즐겨찾는 품목` 섹션 헤더/하단에 **`품목 사전에서 찾아보기` (`router.push("/items")`)** 진입점을 추가할 것.
+   - `app/app/(tabs)/ask.tsx`(물어보기 화면): 초기 안내 화면(`visibleMessages.length === 0`)에 `사진으로 물어보기` 카드와 함께 **`품목 사전에서 찾아보기` (`router.push("/items")`)** 버튼을 배치할 것.
+   - `app/app/items.tsx`: 상단 SafeArea 여백(`useSafeAreaInsets`)을 다른 화면들과 통일해 모바일 상단 상태바와 겹치지 않게 수정할 것.
+2. **홈 화면(`index.tsx`) 자주 찾는 품목 칩 상시 노출**:
+   - 현재 `favItems.length > 0`이면 `QUICK_QUESTIONS`(치킨뼈, 아이스팩, 택배상자, 배달용기, 건전지, 남은 약) 칩이 완전히 사라짐. 즐겨찾기가 1~2개 있더라도 자주 헷갈리는 품목 칩(또는 `/items` 바로가기)을 함께 볼 수 있도록 구성을 보완할 것.
+
+### Task 3. [P1] 관악구 전용수거함(`drop_off_points`) 매핑 누락 보완 (`server/app/assemble.py`, `data/regions/seoul-gwanak.json`)
+
+1. `server/app/assemble.py`의 `DROP_OFF_TYPES` 딕셔너리에 다음 매핑을 추가할 것:
+   - `"furniture_large": "대형폐기물"`, `"duvet_blanket": "대형폐기물"`
+2. `data/regions/seoul-gwanak.json`의 `drop_off_points` 배열에 `"type": "종이팩"` 항목(관악구 21개 동 주민센터 종이팩 전용 수거 및 화장지 교환 안내, [관악구청 재활용품 분리배출 안내](https://www.gwanak.go.kr/site/gwanak/07/10703010200002016051206.jsp))을 추가해 `milk_carton`, `aseptic_carton`, `paper_cup` 조회 시 전용수거처 정보가 정상 노출되게 할 것.
+3. `server/tests/test_assemble.py`에 대형폐기물 및 종이팩 질의 시 `drop_off_points`가 반환되는지 검증하는 테스트를 추가할 것.
+
+### Task 4. [P1] 되묻기 바텀시트(`FollowUpSheet`) 자동 팝업 피로도 개선 (`app/components/ResultCard.tsx`, `app/app/(tabs)/ask.tsx`)
+
+1. 현재 `ask.tsx`와 `CaptureScreen.tsx`에서 `autoOpenFollowUp`이 켜져 있어, 사용자가 질문을 보내자마자 기본 배출 결론과 순서를 읽기도 전에 `FollowUpSheet` 모달이 화면을 덮어버리며, 첫 질문에 답하면 시트가 닫히지 않고 2~3번째 되묻기 질문이 연달아 시트에서 이어집니다.
+2. **수정 방향**:
+   - 결과 카드가 처음 렌더링될 때는 바텀시트가 자동으로 화면을 가리지 않도록 기본값을 `false`로 두어 사용자가 먼저 배출 결론을 읽을 수 있게 하고, 카드 안의 `확인이 필요해요 · 답하기` 배너(또는 카드 내 인라인 `예`/`아니오` 칩 버튼)를 눌렀을 때 답할 수 있게 개선할 것.
+   - 바텀시트에서 1회 응답이 완료되면 시트를 닫아 변경된 답변 본문을 바로 확인할 수 있게 할 것.
+
+### Task 5. [P2] 네비게이션 안전장치, 가이드 `✦` 버튼, 대화 비우기 범위 수정 (`app/app/guides.tsx`, `app/app/favorite/[key].tsx`, `app/app/(tabs)/ask.tsx`)
+
+1. **`app/app/guides.tsx`**:
+   - 상단 `돌아가기` 버튼의 `onPress`를 `() => (router.canGoBack() ? router.back() : router.replace("/"))`로 수정해 웹 직접 진입 시 먹통이 되지 않게 할 것.
+   - `GuideCard`의 `onAsk`가 다짜고짜 `examples[0]` 질문을 `/ask`로 전송하지 않고, `router.push({ pathname: "/guide/[id]", params: { id: guide.id, ask: "1" } })`로 해당 가이드 상세의 AI 질문 입력창으로 이동하게 수정할 것.
+2. **`app/app/favorite/[key].tsx`**:
+   - 상단 뒤로가기 버튼을 `() => (router.canGoBack() ? router.back() : router.replace("/favorites"))`로 수정하고, 홈에서도 진입할 수 있으므로 문구를 `"이전"`(또는 `"돌아가기"`)으로 통일할 것.
+3. **`app/app/(tabs)/ask.tsx`**:
+   - 상단 `비우기` 버튼 클릭 시 `setMessages([])` 대신 `setMessages((current) => current.filter((m) => m.regionId !== regionId))`로 수정해 다른 지역에서 저장한 대화 기록이 삭제되지 않도록 할 것.
+
+## 4. Codex에게 바로 붙여넣을 프롬프트
 
 ```text
-프로젝트 루트의 `CODEX_HANDOFF.md` 파일을 먼저 읽고 현재까지 반영된 1·2차 수정 내역을 파악해 줘.
-그다음 `CODEX_HANDOFF.md`의 "2. Codex가 이어서 진행하면 좋을 후속 작업 지시서"에 정리된 Task 1 ~ Task 4를 순서대로 구현하고, 마지막에 `cd server && .venv/bin/python -m pytest -q`와 `cd app && npx tsc --noEmit && npx expo lint`가 모두 통과하는지 확인해 줘.
+프로젝트 루트의 `CODEX_HANDOFF.md`를 읽고, "3. Codex 작업 지시서"의 Task 1 ~ Task 5를 순서대로 모두 구현해 줘.
+특히 Task 1의 "2-1. 재현된 오작동 테스트 케이스 표"에 있는 12개 질문 시나리오가 모두 기대 결과대로 동작하도록 백엔드 테스트를 추가하고, 작업 완료 후 `cd server && .venv/bin/python -m pytest -q`와 `cd app && npx tsc --noEmit && npx expo lint`가 모두 에러 없이 통과하는지 확인해 줘.
 ```
-
-## 4. 2026-11-07 추가 검증 및 남은 확인
-
-- 백엔드 `pytest`: **50 passed**. 프론트엔드 타입 검사·린트·웹/iOS/Android 번들 내보내기 모두 통과.
-- 로컬 웹앱에서 `우유팩이랑 멸균팩 어떻게 버려?`가 두 공식 분리배출 카드로 표시되는 것을 확인. 새로고침 후 대화·되묻기 상태 복원 및 `대화 비우기` 동작 확인.
-- 실제 Gemini 설정의 로컬 서버로 냉장고 청소 질문을 보내 생활 팁 응답 수신 확인. 사진 인식은 이번 검증 범위에 포함하지 않음.
-- 앱 아이콘·스플래시는 코드와 에셋에 적용했으나 Expo Go 미리보기만으로 네이티브 스플래시의 최종 모양은 확인할 수 없음. 새 개발 빌드에서 확인할 것.
-- 관악구 외 지역의 전용수거함 위치 데이터는 아직 없으며, 관악구 종이팩 상시 수거함의 공식 위치 목록도 확인되지 않음. 앱은 확인되지 않은 위치를 표시하지 않음.
-- 로컬 개발 서버는 8000(API), 8081(Expo) 포트로 실행 중. 휴대폰 테스트 시 맥북과 같은 와이파이 연결 및 `app/.env.local`의 맥북 IP 확인 필요.

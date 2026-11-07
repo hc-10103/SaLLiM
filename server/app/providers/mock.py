@@ -29,7 +29,7 @@ class MockVisionProvider(VisionProvider):
         if any(word in q for word in ("버려", "분리", "재활용", "쓰레기", "배출")):
             key = match_text(q, items)
             return AssistDecision("recycling", Classification(key, 1.0 if key else 0.0))
-        if any(word in q for word in ("청소", "세탁", "빨래", "자취", "보관", "냄새", "먹어도", "해동", "냉장고")):
+        if any(word in q for word in ("청소", "세탁", "빨래", "자취", "보관", "냄새", "먹어도", "해동", "냉장고", "멀티탭", "꽂아", "떼어지")):
             return AssistDecision("tip", tip=TipAdvice(
                 category="자취", title="생활 문제 해결 예시",
                 answer="이 화면은 예시 답변이에요. Gemini를 연결하면 질문에 맞게 답해요.",

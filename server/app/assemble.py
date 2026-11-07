@@ -17,11 +17,12 @@ FOLLOW_UP_QUESTIONS = {
 }
 
 DROP_OFF_TYPES = {
-    "milk_carton": "종이팩", "aseptic_carton": "종이팩", "paper_cup": "종이팩",
+    "milk_carton": "종이팩", "aseptic_carton": "종이팩",
     "battery": "폐건전지·폐형광등", "fluorescent_lamp": "폐건전지·폐형광등",
     "cooking_oil": "폐식용유", "medicine_waste": "폐의약품",
     "clothing": "의류·신발·가방", "small_appliance": "폐가전 무상방문수거",
     "large_appliance": "폐가전 무상방문수거",
+    "furniture_large": "대형폐기물", "duvet_blanket": "대형폐기물",
 }
 
 
@@ -43,7 +44,7 @@ def euro(word: str) -> str:
 def unknown_response() -> AskResponse:
     return AskResponse(
         item_key=None, item_name=None, category=None,
-        answer=f"무엇인지 확실하지 않아요. {RETRY_MSG}",
+        answer="물건 이름, 재질, 오염 상태를 더 자세히 알려주세요.",
         steps=[], next_days=[], time=None, confident=False, follow_up=None, sources=[],
     )
 
@@ -117,7 +118,13 @@ def assemble(item_key: str, item: Item, region: RegionData,
         if days:
             answer += f" {eun(sched_name)} {'·'.join(days)}요일" + (f" {sched_time}" if sched_time else "") + "에 내놓아요."
     if notes:
-        answer += " " + " ".join(notes)
+        # 질문에 드러난 오염·라벨 상태를 일반 배출법보다 먼저 보여준다.
+        if item_key == "plastic_container" and state.is_dirty is True:
+            answer = (f"{eun(item.name)} 먼저 음식물과 국물을 비우고 기름기를 씻어 보세요. "
+                      f"{item.conditions['is_dirty']} "
+                      f"깨끗이 씻겼다면 {euro(item.category)} 배출해요.")
+        else:
+            answer = " ".join(notes) + " " + answer
     if not confident:
         answer = f"아마 {item.name} 같아요. 확실하지 않으니 {RETRY_MSG}"
         # 추정한 품목의 배출법을 확정된 안내처럼 노출하지 않는다.
@@ -126,6 +133,11 @@ def assemble(item_key: str, item: Item, region: RegionData,
             answer=answer, steps=[], next_days=[], time=None,
             confident=False, follow_up=None, sources=[], note=None,
         )
+
+    if item_key == "plastic_container" and state.is_dirty is True:
+        steps[-1] = ("깨끗이 씻긴 용기는 플라스틱류로, 기름·양념이 지워지지 않는 용기는 "
+                     "일반쓰레기(종량제 봉투)로 배출하기")
+        notes = []  # 조건은 결론과 마지막 단계에 이미 반영했다.
 
     return AskResponse(
         item_key=item_key, item_name=item.name, category=item.category,

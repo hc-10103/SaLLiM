@@ -10,6 +10,7 @@ export type Weekday = "월" | "화" | "수" | "목" | "금" | "토" | "일";
 export type Source = { title: string; url: string; updated: string };
 
 export type Region = { id: string; name: string }; // id 예: "seoul-gwanak"
+export type ItemSummary = { key: string; name: string; category: Category; aliases: string[] };
 
 // 배출법이 갈리는 상태만
 export type ItemState = {
@@ -26,7 +27,9 @@ export type AskRequest = {
   image_base64?: string; // JPEG, 긴 변 1024px. question/image 중 하나는 필수
 };
 
-export type AssistRequest = AskRequest;
+export type AssistRequest = AskRequest & {
+  purpose?: "recycling"; // 분리배출 전용 화면에서 사용자가 선택한 목적
+};
 
 export type TipAdvice = {
   category: "자취" | "생활";
@@ -36,11 +39,21 @@ export type TipAdvice = {
   caution: string | null;
 };
 
+export type WebAdvice = {
+  item_name: string;
+  answer: string;
+  steps: string[];
+  sources: { title: string; url: string }[];
+  searched_on: string;
+  note: string;
+};
+
 export type AssistResponse = {
-  kind: "recycling" | "tip" | "unknown";
+  kind: "recycling" | "tip" | "web" | "unknown";
   recycling: AskResponse | null;
   recycling_list?: AskResponse[] | null; // 여러 품목을 물으면 질문 순서대로 반환
   tip: TipAdvice | null;
+  web?: WebAdvice | null;
   message: string | null;
 };
 
@@ -101,6 +114,7 @@ export type WasteAreaDetail = WasteAreaSummary & {
 
 // 엔드포인트
 // GET  /regions                 -> Region[]
+// GET  /items                   -> ItemSummary[]
 // POST /ask                     AskRequest -> AskResponse
 // POST /assist                  AssistRequest -> AssistResponse (분리배출·생활 질문/사진)
 // POST /ask/followup            FollowUpRequest -> AskResponse

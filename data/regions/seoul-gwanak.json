@@ -78,6 +78,11 @@
   },
   "drop_off_points": [
     {
+      "type": "종이팩",
+      "where": "관악구 21개 동 주민센터 종이팩 교환 사업은 운영 일정이 정해져 있어요. 방문 전 관악구청의 최신 일정과 접수 방법을 확인하세요.",
+      "url": "https://www.gwanak.go.kr/site/gwanak/ex/bbs/View.do?bcIdx=204552&cbIdx=239"
+    },
+    {
       "type": "폐건전지·폐형광등",
       "where": "관악구 21개 동 주민센터 및 공동주택(아파트) 단지 내 전용 수거함 (청소행정과 02-879-6223~4)",
       "url": "https://www.gwanak.go.kr/site/gwanak/09/10903060000002023030704.jsp"

@@ -1,9 +1,11 @@
 **/.venv
 **/__pycache__
 **/.env
+**/.env.*
 app/
 docs/
 .agent-mail*
 scripts/
 server/tests
 server/eval
+data/web_advice_cache.json

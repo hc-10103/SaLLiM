@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from app import data
 from app.match import match_multiple_texts, match_text
 from tests.conftest import FIXTURES
 
 ITEMS = data.load(FIXTURES).items
+FULL_ITEMS = data.load(Path(__file__).parents[2] / "data").items
 
 
 def test_exact_and_alias():
@@ -42,3 +45,10 @@ def test_multiple_items_keep_question_order_and_single_match_unchanged():
 
 def test_multiple_items_with_broken_glass_falls_back():
     assert match_multiple_texts("깨진 소주병이랑 건전지 버려요", ITEMS) == []
+
+
+def test_multiple_match_excludes_category_names_and_containers():
+    assert match_multiple_texts("테이크아웃 플라스틱 컵도 투명페트로 버려요?", FULL_ITEMS) == ["plastic_cup_takeout"]
+    assert match_multiple_texts("빈 페트병에 폐식용유 담아서 버려요?", FULL_ITEMS) == ["cooking_oil"]
+    assert match_multiple_texts("생수병이랑 소주병 어떻게 버려요?", FULL_ITEMS) == [
+        "pet_bottle_clear", "glass_bottle"]

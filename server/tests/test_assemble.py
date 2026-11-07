@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app import data
 from app.assemble import assemble
 from app.providers.base import parse_response
@@ -54,6 +56,19 @@ def test_dedicated_collection_shows_only_matching_drop_off_point():
     result = assemble("battery", S.items["battery"], region)
     assert len(result.drop_off_points) == 1
     assert result.drop_off_points[0].where == "동 주민센터"
+
+
+def test_gwanak_bulky_waste_and_carton_drop_off():
+    store = data.load(Path(__file__).parents[2] / "data")
+    region = store.regions["seoul-gwanak"]
+    for key in ("furniture_large", "duvet_blanket"):
+        result = assemble(key, store.items[key], region)
+        assert [point.type for point in result.drop_off_points] == ["대형폐기물"]
+    for key in ("milk_carton", "aseptic_carton"):
+        result = assemble(key, store.items[key], region)
+        assert [point.type for point in result.drop_off_points] == ["종이팩"]
+    cup = assemble("paper_cup", store.items["paper_cup"], region)
+    assert cup.drop_off_points == []
 
 
 def test_parse_response_rejects_unlisted_key():

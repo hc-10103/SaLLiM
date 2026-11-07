@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo/ui": "~58.0.27",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.23",
     "expo-build-properties": "~58.0.12",
@@ -13,6 +14,7 @@
     "expo-router": "~58.0.30",
     "expo-splash-screen": "~58.0.13",
     "expo-status-bar": "~58.0.4",
+    "heic-to": "1.6.7",
     "react": "19.3.0",
     "react-dom": "^19.3.0",
     "react-native": "0.88.1",

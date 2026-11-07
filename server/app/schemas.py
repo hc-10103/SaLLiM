@@ -22,6 +22,13 @@ class Region(BaseModel):
     name: str
 
 
+class ItemSummary(BaseModel):
+    key: str
+    name: str
+    category: Category
+    aliases: list[str]
+
+
 class ItemState(BaseModel):
     model_config = ConfigDict(extra="forbid")
     has_label: bool | None = None
@@ -45,6 +52,7 @@ class AskRequest(BaseModel):
 
 class AssistRequest(AskRequest):
     question: str | None = Field(default=None, max_length=500)
+    purpose: Literal["recycling"] | None = None  # 사용자가 분리배출 전용 흐름을 선택한 경우
 
 
 class TipAdvice(BaseModel):
@@ -53,6 +61,20 @@ class TipAdvice(BaseModel):
     answer: str = Field(min_length=1, max_length=600)
     steps: list[str] = Field(default_factory=list, max_length=6)
     caution: str | None = Field(default=None, max_length=300)
+
+
+class WebSource(BaseModel):
+    title: str = Field(min_length=1)
+    url: str = Field(pattern=r"^https://")
+
+
+class WebAdvice(BaseModel):
+    item_name: str = Field(min_length=1, max_length=80)
+    answer: str = Field(min_length=1, max_length=600)
+    steps: list[str] = Field(min_length=1, max_length=5)
+    sources: list[WebSource] = Field(min_length=1, max_length=5)
+    searched_on: str
+    note: str = "웹에서 찾은 일반 안내예요. 배출 요일·장소는 거주지 지자체나 공동주택 안내를 확인하세요."
 
 
 class FollowUpRequest(BaseModel):
@@ -84,10 +106,11 @@ class AskResponse(BaseModel):
 
 
 class AssistResponse(BaseModel):
-    kind: Literal["recycling", "tip", "unknown"]
+    kind: Literal["recycling", "tip", "web", "unknown"]
     recycling: AskResponse | None = None
     recycling_list: list[AskResponse] | None = None
     tip: TipAdvice | None = None
+    web: WebAdvice | None = None
     message: str | None = None
 
 

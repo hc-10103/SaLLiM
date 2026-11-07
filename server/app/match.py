@@ -1,10 +1,11 @@
 """텍스트 질문 → item_key. 이름/별칭 매칭 (LLM 전에)."""
 import re
 
-from .schemas import Item
+from .schemas import Item, ItemState
 
 BROKEN_WORDS = ("깨진", "깨졌", "깨져", "박살", "금간", "산산조각")
 GLASS_WORDS = ("유리", "소주병", "맥주병", "와인병", "음료수병", "잼병", "병", "거울", "컵", "뚜껑")
+CATEGORY_TERMS = {"음식물", "투명페트", "플라스틱", "종이", "종이팩", "유리병", "비닐"}
 
 
 def normalize(s: str) -> str:
@@ -17,6 +18,45 @@ def extract_user_question(question: str) -> str:
     if marker in question:
         return question.split(marker, 1)[-1].strip()
     return question
+
+
+def _context_only_alias(key: str, term: str, question: str, start: int, end: int) -> bool:
+    """용기에 묻은 이물질을 별도로 버릴 품목으로 세지 않는다."""
+    nearby = question[max(0, start - 8):min(len(question), end + 20)]
+    if key == "cooking_oil" and term == "기름":
+        return bool(re.search(r"기름.{0,16}(묻|튀었|얼룩|오염|범벅|배었|밴|착색|씻|세척|닦|제거|비우)", nearby))
+    if key == "food_waste" and term == "음식물":
+        return bool(re.search(r"음식물.{0,8}(묻|붙|남아|남았|범벅)", nearby))
+    if key == "plastic_bag" and term == "비닐":
+        if question[end:].startswith("라벨"):
+            return True
+        if re.search(r"(?:붙은|붙어있는|안떼어지는)비닐", nearby) and re.search(
+            r"(?:페트병|배달용기|상자|박스|컵)", question[:start]
+        ):
+            return True
+    if key == "box_tape_sticker" and term in ("테이프", "스티커", "라벨지"):
+        if re.search(r"(?:상자|박스)", question[:start]) and re.search(r"붙|안떼|떼어", nearby):
+            return True
+    if key in ("frying_pan_pot", "pet_bottle_clear") and "식용유" in question:
+        if re.search(r"^에.{0,18}(?:남은|담)", question[end:]):
+            return True
+    return False
+
+
+def infer_text_state(question: str, item: Item) -> ItemState:
+    """문장에 명시된 상태만 반영한다. 세척 가능 여부는 추정하지 않는다."""
+    raw = extract_user_question(question)
+    state = ItemState()
+    if "has_label" in item.conditions:
+        if re.search(r"(?:라벨|테이프|송장|스티커|붙은\s*비닐).{0,20}(?:붙|안\s*떼|떼고|떼어|달려)", raw):
+            state.has_label = True
+        elif re.search(r"(?:라벨|테이프|송장|스티커).{0,8}(?:없|제거했|떼었|뗐)", raw):
+            state.has_label = False
+    if "is_dirty" in item.conditions and re.search(
+        r"(?:고추기름|기름|양념|소스|국물|음식물).{0,12}(?:묻|튀었|얼룩|오염|배었|밴|착색|범벅)", raw
+    ) and not re.search(r"(?:안|않|없이)\s*묻", raw):
+        state.is_dirty = True
+    return state
 
 
 def match_text(question: str, items: dict[str, Item]) -> str | None:
@@ -38,7 +78,8 @@ def match_text(question: str, items: dict[str, Item]) -> str | None:
                 continue  # 한 글자 별칭은 오매칭 위험
             if term == q:
                 return key
-            if term in q:
+            start = q.find(term)
+            if start >= 0 and not _context_only_alias(key, term, q, start, start + len(term)):
                 if len(term) > best_len:
                     best_len, best = len(term), {key}
                 elif len(term) == best_len:
@@ -61,20 +102,27 @@ def match_multiple_texts(question: str, items: dict[str, Item], max_items: int =
         return []  # 파손 상태의 적용 범위를 문장만으로 안전하게 나눌 수 없다.
 
     spans: dict[tuple[int, int], set[str]] = {}
+    ignored_spans: list[tuple[int, int]] = []
     for key, item in items.items():
         for raw_term in (item.name, *item.aliases):
             term = normalize(raw_term)
             if len(term) < 2:
                 continue
             for found in re.finditer(re.escape(term), q):
-                if key == "food_waste" and term == "음식물" and q[found.end():].startswith(
-                    ("이야", "인가", "이에요", "입니까", "로")
+                if _context_only_alias(key, term, q, *found.span()):
+                    ignored_spans.append(found.span())
+                    continue
+                if term in CATEGORY_TERMS and re.match(
+                    r"(?:로|으로|인가|이야|이에요|입니까|류인가|맞나)", q[found.end():]
                 ):
-                    continue  # "계란껍질 음식물이야?"의 음식물은 품목이 아닌 분류다.
+                    ignored_spans.append(found.span())
+                    continue  # 분류명 질문은 두 번째 물건이 아니다.
                 spans.setdefault(found.span(), set()).add(key)
 
     candidates = [(start, end, next(iter(keys)))
-                  for (start, end), keys in spans.items() if len(keys) == 1]
+                  for (start, end), keys in spans.items() if len(keys) == 1
+                  and not any(ignored_start <= start and end <= ignored_end
+                              for ignored_start, ignored_end in ignored_spans)]
     candidates.sort(key=lambda row: (-(row[1] - row[0]), row[0]))
     chosen: list[tuple[int, int, str]] = []
     for start, end, key in candidates:
