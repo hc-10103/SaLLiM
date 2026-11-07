@@ -98,6 +98,7 @@ class AskResponse(BaseModel):
     next_days: list[str]
     time: str | None
     confident: bool
+    confidence: float | None = None  # 0~1, 사진 인식 확신도 (확신 낮음 화면에 % 표시)
     follow_up: FollowUp | None
     sources: list[Source]
     note: str | None = None  # 동네 데이터의 예외 안내 (아파트별 요일 차이 등)

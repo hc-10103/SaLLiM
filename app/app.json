@@ -40,6 +40,14 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 280
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "버릴 물건을 찍어서 분리배출 방법을 알려드리려고 카메라를 사용해요.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ]
   }

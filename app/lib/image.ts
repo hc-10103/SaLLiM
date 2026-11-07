@@ -55,3 +55,12 @@ export async function pickImageBase64(source: "camera" | "library"): Promise<str
     if (temporaryUrl) URL.revokeObjectURL(temporaryUrl);
   }
 }
+
+// 카메라로 찍은 사진(uri) → 긴 변 1024px, JPEG 0.7 → base64. 촬영 화면(④)에서 사용.
+export async function uriToJpegBase64(uri: string, width: number, height: number): Promise<string> {
+  const long = Math.max(width, height);
+  const resize = long > 1024 ? [{ resize: width >= height ? { width: 1024 } : { height: 1024 } }] : [];
+  const out = await manipulateAsync(uri, resize, { compress: 0.7, format: SaveFormat.JPEG, base64: true });
+  if (!out.base64) throw new Error("사진을 JPEG로 변환하지 못했어요. 다시 찍어 주세요.");
+  return out.base64;
+}

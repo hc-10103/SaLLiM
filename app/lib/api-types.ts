@@ -75,6 +75,7 @@ export type AskResponse = {
   next_days: string[];       // 이 카테고리 배출 요일 예: ["화", "금"] (모르면 [])
   time: string | null;       // "18:00~24:00"
   confident: boolean;
+  confidence?: number | null; // 0~1, 사진 인식 확신도 (확신 낮음 화면 % 표시)
   follow_up: { key: keyof ItemState; question: string } | null;
   sources: Source[];
   note?: string | null;      // 동네 예외 안내 (예: 아파트 단지별 요일 다름). 있으면 요일 옆에 꼭 표시

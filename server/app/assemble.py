@@ -131,7 +131,7 @@ def assemble(item_key: str, item: Item, region: RegionData,
         return AskResponse(
             item_key=item_key, item_name=item.name, category=None,
             answer=answer, steps=[], next_days=[], time=None,
-            confident=False, follow_up=None, sources=[], note=None,
+            confident=False, confidence=round(confidence, 2), follow_up=None, sources=[], note=None,
         )
 
     if item_key == "plastic_container" and state.is_dirty is True:
@@ -143,7 +143,7 @@ def assemble(item_key: str, item: Item, region: RegionData,
         item_key=item_key, item_name=item.name, category=item.category,
         answer=answer, steps=steps + notes, next_days=days,
         time=sched_time if days else None,
-        confident=confident, follow_up=follow_up,
+        confident=confident, confidence=round(confidence, 2), follow_up=follow_up,
         sources=_dedupe([*item.sources, *extra_sources]),
         note=sched_note,
         drop_off_points=[point for point in region.drop_off_points
