@@ -1,7 +1,7 @@
 from app import data
 from app.assemble import assemble
 from app.providers.base import parse_response
-from app.schemas import ItemState
+from app.schemas import DropOffPoint, ItemState
 from tests.conftest import FIXTURES
 
 S = data.load(FIXTURES)
@@ -36,12 +36,24 @@ def test_low_confidence():
     r = pet(conf=0.5)
     assert not r.confident and r.follow_up is None
     assert "다시 찍거나 이름으로 물어봐 주세요" in r.answer
+    assert r.steps == [] and r.next_days == [] and r.time is None
+    assert r.category is None and r.sources == [] and r.note is None
 
 
 def test_region_override():
     r = assemble("battery", S.items["battery"], REGION)
     assert "주민센터" in r.answer and r.steps[0].startswith("주민센터")
     assert r.next_days == [] and r.time is None
+
+
+def test_dedicated_collection_shows_only_matching_drop_off_point():
+    region = REGION.model_copy(update={"drop_off_points": [
+        DropOffPoint(type="폐건전지·폐형광등", where="동 주민센터", url="https://example.com/battery"),
+        DropOffPoint(type="폐의약품", where="보건소", url="https://example.com/medicine"),
+    ]})
+    result = assemble("battery", S.items["battery"], region)
+    assert len(result.drop_off_points) == 1
+    assert result.drop_off_points[0].where == "동 주민센터"
 
 
 def test_parse_response_rejects_unlisted_key():
@@ -55,6 +67,7 @@ def test_josa():
     from app.assemble import eun, euro
     assert [eun(w) for w in ["유리병", "투명 페트병", "종이", "관악구"]] == ["유리병은", "투명 페트병은", "종이는", "관악구는"]
     assert [euro(w) for w in ["유리병", "종이", "캔·고철", "음식물", "일반쓰레기"]] == ["유리병으로", "종이로", "캔·고철로", "음식물로", "일반쓰레기로"]
+    assert eun("멸균팩 (두유·주스·생크림 팩)").endswith("은")
 
 
 def test_prompt_lists_only_known_keys_and_null_rule():

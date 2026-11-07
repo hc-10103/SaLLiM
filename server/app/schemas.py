@@ -32,6 +32,7 @@ class ItemState(BaseModel):
 
 class AskRequest(BaseModel):
     region_id: str
+    area_id: str | None = None
     question: str | None = None
     image_base64: str | None = None
 
@@ -42,8 +43,21 @@ class AskRequest(BaseModel):
         return self
 
 
+class AssistRequest(AskRequest):
+    question: str | None = Field(default=None, max_length=500)
+
+
+class TipAdvice(BaseModel):
+    category: Literal["자취", "생활"]
+    title: str = Field(min_length=1, max_length=80)
+    answer: str = Field(min_length=1, max_length=600)
+    steps: list[str] = Field(default_factory=list, max_length=6)
+    caution: str | None = Field(default=None, max_length=300)
+
+
 class FollowUpRequest(BaseModel):
     region_id: str
+    area_id: str | None = None
     item_key: str
     state: ItemState
 
@@ -65,6 +79,16 @@ class AskResponse(BaseModel):
     follow_up: FollowUp | None
     sources: list[Source]
     note: str | None = None  # 동네 데이터의 예외 안내 (아파트별 요일 차이 등)
+    drop_off_points: list["DropOffPoint"] = Field(default_factory=list)
+    answered_state: ItemState = Field(default_factory=ItemState)
+
+
+class AssistResponse(BaseModel):
+    kind: Literal["recycling", "tip", "unknown"]
+    recycling: AskResponse | None = None
+    recycling_list: list[AskResponse] | None = None
+    tip: TipAdvice | None = None
+    message: str | None = None
 
 
 class ScheduleResponse(BaseModel):
@@ -75,6 +99,43 @@ class ScheduleResponse(BaseModel):
     time: str | None
     sources: list[Source]
     note: str | None = None
+
+
+class WasteAreaSummary(BaseModel):
+    id: str
+    city: str
+    district: str
+    zone: str
+    target: str
+    data_date: str
+
+
+class WasteAreaSearch(BaseModel):
+    items: list[WasteAreaSummary]
+    total: int
+    downloaded_on: str
+
+
+class WasteAreaDetail(WasteAreaSummary):
+    place_type: str
+    place: str
+    general_method: str
+    food_method: str
+    recycling_method: str
+    general_days: str
+    food_days: str
+    recycling_days: str
+    general_start: str
+    general_end: str
+    food_start: str
+    food_end: str
+    recycling_start: str
+    recycling_end: str
+    no_collection_days: str
+    department: str
+    phone: str
+    source_url: str
+    downloaded_on: str
 
 
 # ---- 데이터 파일 스키마 (data/) ----

@@ -23,5 +23,5 @@ export default function CategoryIcon({ category, size = 24, color = colors.prima
   const body = category ? BODY[category] : undefined;
   if (!body) return null;
   const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-  return <SvgXml xml={xml} width={size} height={size} accessibilityElementsHidden importantForAccessibility="no" />;
+  return <SvgXml xml={xml} width={size} height={size} />;
 }

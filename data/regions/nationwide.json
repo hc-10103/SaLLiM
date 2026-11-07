@@ -1,0 +1,16 @@
+{
+  "id": "nationwide",
+  "name": "전국 공통 안내 (배출 요일 제외)",
+  "week": {},
+  "time": null,
+  "overrides": {},
+  "drop_off_points": [],
+  "sources": [
+    {
+      "title": "환경부·한국환경공단 내 손안의 분리배출",
+      "url": "https://www.wasteguide.or.kr",
+      "updated": "2026-01"
+    }
+  ],
+  "note": "품목별 기본 분리배출 방법만 안내합니다. 배출 요일·시간, 종량제 봉투, 대형폐기물·전용수거 위치는 거주지 지자체나 공동주택 안내문을 확인하세요."
+}

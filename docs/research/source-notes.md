@@ -19,6 +19,18 @@
 | 도메인 (루트 URL) | 출처 제목 | 사용 파일 및 건수 | 루트 URL 유지 사유 |
 |---|---|---|---|
 | `https://www.wasteguide.or.kr` | 환경부·한국환경공단 내 손안의 분리배출 (생활폐기물 분리배출 누리집, `분리배출.kr` 동일) | `data/items.json` (보조 출처로 48개 품목에 병기) | 730여 개 품목사전이 내부 검색 파라미터로 동작하여 개별 품목 고정 URL을 단정하지 않고 공식 포털 루트 URL을 병기함 (모든 해당 품목에는 `law.go.kr` 또는 `easylaw.go.kr` 딥링크가 함께 들어 있음). |
-| `https://www.gwanak.go.kr` | 서울특별시 관악구청 청소행정과 생활폐기물·재활용품 배출안내 | `data/regions/seoul-gwanak.json` (`sources` 1건, `drop_off_points` 4건) | 관악구청 홈페이지 내 청소행정과 안내 페이지의 세부 `pageId` 쿼리스트링을 추측하지 않고 공식 루트 도메인으로 표기함. |
 | `https://smartclean.gwanak.go.kr` | 스마트클린 관악 — 대형폐기물 및 생활폐기물 배출 안내 | `data/regions/seoul-gwanak.json` (`sources` 1건, `drop_off_points` 1건) | 관악구 대형폐기물 온라인 신청 전용 서브도메인 루트가 곧 서비스 진입 페이지임. |
 | `https://www.15990903.or.kr` | 환경부·e-순환거버넌스 폐가전제품 무상방문수거 안내 | `data/items.json` (`small_appliance`, `large_appliance`), `data/regions/seoul-gwanak.json` (`drop_off_points` 1건) | 폐가전 무상방문수거 공식 예약 포털의 대표 진입 URL임. |
+
+## 3. 관악구 배출 요일·시간 근거 (2026-11-05 확인)
+
+- [관악구청 재활용품 분리배출](https://www.gwanak.go.kr/site/gwanak/07/10703010200002016051206.jsp): 단독·다가구·다세대·연립·상가의 재활용품은 토요일을 제외하고 매일 배출하며, 폐비닐과 투명페트병은 목요일에만 배출한다고 안내한다. 주거지역 배출시간은 18:00~24:00이고, 아파트는 단지별로 다르다고 명시한다. 페이지 최종 업데이트는 2026-09-16이다.
+- [관악구청 생활쓰레기 배출](https://www.gwanak.go.kr/site/gwanak/07/10703010100002016051206.jsp): 생활쓰레기의 토요일 제외 배출시간과 장소를 안내한다.
+- `data/regions/seoul-gwanak.json`의 일반적인 요일·시간은 위 안내와 대조했다. 수거 거점 위치와 특수 품목의 개별 안내는 별도로 확인해야 한다.
+
+## 4. 관악구 전용수거 안내 링크 (2026-11-07 확인)
+
+- [폐건전지·폐형광등 및 폐의약품](https://www.gwanak.go.kr/site/gwanak/09/10903060000002023030704.jsp): 공동주택·동 주민센터 수거함과 폐의약품 수거 장소를 안내한다. 폐의약품은 21개 동 주민센터 수거함과 지정 우체통 배출 방법을 안내한다.
+- [재활용 의류 배출](https://www.gwanak.go.kr/site/gwanak/08/10803010800002021012201.jsp): 동별 의류수거함 위치도 다운로드를 제공한다. 실제 위치는 변동될 수 있다.
+- [폐식용유 스마트 수거함](https://www.gwanak.go.kr/site/gwanak/ex/bbs/View.do?bcIdx=171511&cbIdx=295): 설치 사례를 설명하는 관악구 보도자료다. 최신 개별 수거함 위치는 직접 확인해야 한다.
+- 종이팩 상시 수거함 위치를 확인할 공식 목록은 찾지 못했다. 2026년 하반기 종이팩 유가보상제는 [관악구 공지](https://www.gwanak.go.kr/site/gwanak/ex/bbs/View.do?bcIdx=204552&cbIdx=239) 기준 11월 5일에 종료되어 앱에 현행 수거 장소처럼 표시하지 않는다.

@@ -28,3 +28,10 @@ def test_no_alias_shared_between_items(store):
 def test_regions_have_schedule_or_note(store):
     for r in store.regions.values():
         assert r.week or r.note, f"{r.id}: week도 note도 없음"
+
+
+def test_nationwide_has_no_invented_schedule(store):
+    national = store.regions["nationwide"]
+    assert not national.week
+    assert national.time is None
+    assert "지자체" in national.note

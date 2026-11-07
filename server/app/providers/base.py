@@ -3,7 +3,9 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from ..schemas import Item, ItemState
+from pydantic import ValidationError
+
+from ..schemas import Item, ItemState, TipAdvice
 
 
 @dataclass
@@ -11,6 +13,13 @@ class Classification:
     item_key: str | None          # items의 key 중 하나, 모르면 None
     confidence: float = 0.0       # 0~1
     state: ItemState = field(default_factory=ItemState)  # 판단 못 한 상태는 None
+
+
+@dataclass
+class AssistDecision:
+    kind: str
+    classification: Classification | None = None
+    tip: TipAdvice | None = None
 
 
 class VisionProvider:
@@ -21,6 +30,56 @@ class VisionProvider:
 
     def match_text(self, question: str, items: dict[str, Item]) -> Classification:
         raise NotImplementedError
+
+    def assist(self, question: str | None, image: bytes | None,
+               items: dict[str, Item]) -> AssistDecision:
+        raise NotImplementedError
+
+
+def build_assist_prompt(items: dict[str, Item], question: str | None) -> str:
+    names = "\n".join(f"{key}: {item.name}" for key, item in items.items())
+    return (
+        "당신은 한국의 자취·생활 도우미입니다. 사용자 질문과 사진을 보고 JSON 하나만 답하세요. "
+        "사진에 여러 물건이 있으면 중심 물건을 보세요. 사진에서 보이지 않는 상태는 추측하지 마세요.\n"
+        f"사용자 질문: {question or '사진 속 물건이나 생활 문제를 알려줘'}\n"
+        "분리배출 질문이나 버릴 물건 사진이면 kind=recycling. 이때 아래 목록의 item_key만 고르고, "
+        "없거나 불확실하면 item_key=unknown, confidence=0. "
+        "배출 방법·요일은 작성하지 마세요.\n"
+        "청소, 세탁, 보관, 요리, 자취 준비 등 생활 문제면 kind=tip. "
+        "짧고 실행 가능한 방법을 1~5단계로 제시하세요. 사진만으로 원인을 단정하지 마세요. "
+        "청소용 화학제품은 희석 비율·방치 시간·새로운 혼합법을 제안하지 말고 제조사 표시대로 사용하라고 하세요. "
+        "서로 다른 세정제는 섞지 말라고 명시하세요. "
+        "가스 냄새·감전·화재·심각한 건강 문제 등 위험 상황은 직접 수리나 처치를 안내하지 말고 "
+        "안전한 대피·전문기관 연락을 권하세요. 확인하지 않은 출처나 수치를 지어내지 마세요.\n"
+        "질문이 불명확하거나 범위 밖이면 kind=unknown.\n"
+        f"분리배출 품목:\n{names}\n"
+        f"분리배출 상태: {STATE_GUIDE}\n{DISAMBIGUATION_GUIDE}\n"
+        'JSON 형식: {"kind":"recycling|tip|unknown",'
+        '"item_key":"목록 key 또는 unknown","confidence":0.0,'
+        '"state":{"has_label":null,"has_contents":null,"is_dirty":null,"is_coated":null},'
+        '"category":"자취|생활","title":"짧은 제목","answer":"핵심 한두 문장",'
+        '"steps":["실행 단계"],"caution":"주의할 점 또는 null"}. '
+        "recycling에서는 item_key/confidence/state만, tip에서는 category/title/answer/steps/caution만 필요합니다."
+    )
+
+
+def parse_assist_response(text: str, items: dict[str, Item]) -> AssistDecision:
+    try:
+        raw = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return AssistDecision("unknown")
+    if not isinstance(raw, dict):
+        return AssistDecision("unknown")
+    if raw.get("kind") == "recycling":
+        c = parse_response(text, items)
+        return AssistDecision("recycling", classification=c)
+    if raw.get("kind") == "tip":
+        try:
+            tip = TipAdvice.model_validate(raw)
+        except ValidationError:
+            return AssistDecision("unknown")
+        return AssistDecision("tip", tip=tip)
+    return AssistDecision("unknown")
 
 
 # 상태·혼동 규칙: docs/research/vlm-hints.md (researcher R6) 반영
