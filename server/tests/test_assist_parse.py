@@ -25,3 +25,11 @@ def test_semantic_intent_response_is_validated():
     assert parse_intent_response('{"intent":"home_cleaning"}') == "home_cleaning"
     assert parse_intent_response('{"intent":"unsupported"}') is None
     assert parse_intent_response('not json') is None
+
+
+def test_mixed_trash_bag_is_not_one_item():
+    # 봉투 속 페트병을 품목으로 고르더라도 mixed면 품목 하나로 답하지 않는다
+    decision = parse_assist_response(
+        '{"kind":"recycling","item_key":"pet_bottle_clear","confidence":0.9,"mixed":true}', ITEMS)
+    assert decision.classification is not None
+    assert decision.classification.item_key is None and decision.classification.mixed

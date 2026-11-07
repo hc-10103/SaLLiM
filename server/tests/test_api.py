@@ -370,3 +370,8 @@ def test_ai_service_failure_is_safe_for_app():
     r = cc.post("/ask", json={"region_id": R, "question": "우주선"})
     assert r.status_code == 503
     assert "잠시 후 다시 시도" in r.json()["detail"]
+
+
+def test_assist_mixed_trash_bag_photo():
+    r = c.post("/assist", json={"region_id": R, "image_base64": b64(b"MOCK:mixed"), "purpose": "recycling"}).json()
+    assert r["kind"] == "unknown" and "섞여" in r["message"]

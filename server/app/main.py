@@ -150,6 +150,9 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
             return respond(Classification(key, 1.0, infer_text_state(req.question, store.items[key])), region, area)
         return respond(ask_provider(provider.match_text, req.question, store.items), region, area)
 
+    MIXED_MSG = ("봉투 안에 여러 쓰레기가 섞여 있어서 하나로 판단하기 어려워요. "
+                 "버릴 물건을 하나씩 꺼내 찍거나, 이름으로 물어봐 주세요.")
+
     @app.post("/assist", response_model=AssistResponse)
     def assist(req: AssistRequest):
         region = region_or_404(req.region_id)
@@ -194,6 +197,8 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
         decision = (ask_provider(assist_with_intent, req.question, image, store.items, intent)
                     if callable(assist_with_intent)
                     else ask_provider(provider.assist, req.question, image, store.items))
+        if decision.classification is not None and decision.classification.mixed:
+            return AssistResponse(kind="unknown", message=MIXED_MSG)
         if (decision.kind == "recycling" and decision.classification is not None
                 and decision.classification.item_key is not None
                 and (intent is None or intent == "recycling")):

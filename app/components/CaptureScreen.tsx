@@ -8,7 +8,7 @@ import { LowConfidenceView, ScanningView } from "./CaptureStatus";
 import Icon from "./Icon";
 import { ErrorBox } from "./Status";
 import { Button, Card, Notice } from "./ui";
-import { assist } from "../lib/api";
+import { assist, isMock } from "../lib/api";
 import type { AssistResponse } from "../lib/api-types";
 import { pickImageBase64 } from "../lib/image";
 import { useRegionSelection } from "../lib/useRegion";
@@ -145,7 +145,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
   if (!result) {
     return <CameraViewfinder purpose={purpose} onPurpose={(p) => { setPurpose(p); setErr(null); }}
       onShot={(img) => { setB64(img); send(img); }} onPick={go} onAskByName={() => router.push("/ask")}
-      onBack={asTab ? undefined : goBack} regionLabel={regionLabel} disabled={busy || !regionId} error={err} />;
+      onBack={asTab ? undefined : goBack} regionLabel={isMock ? "예시 모드(서버 미연결) ·" + (regionLabel ? ` ${regionLabel}` : "") : regionLabel} disabled={busy || !regionId} error={err} />;
   }
 
   // 결과
@@ -162,12 +162,22 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
           style={{ width: 44, height: 44, borderRadius: radius.button, borderCurve: "continuous" }} />}
       </View>
 
+      {isMock && <Notice tone="warn" title="예시 모드 — 서버에 연결되지 않았어요">
+        지금 결과는 실제 인식이 아닌 고정된 예시예요. app/.env에 EXPO_PUBLIC_API_URL을 넣고 npx expo start -c로 다시 켜 주세요.
+      </Notice>}
       {region === null && <Notice tone="info" title="지금은 전국 공통 기준으로 답해요">설정에서 동네를 고르면 배출 요일까지 알려드려요.</Notice>}
 
       {err && <ErrorBox message={err} onRetry={b64 ? () => send(b64) : undefined} />}
       {needsConfirmation && !confirmed && (
         <Card style={{ gap: space.smPlus }}>
-          <Text style={{ ...typography.caption, color: colors.subtext }}>사진 속 물건이</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ ...typography.caption, color: colors.subtext }}>사진 속 물건이</Text>
+            {typeof candidate?.confidence === "number" && candidate.confidence > 0 && (
+              <View style={{ paddingHorizontal: space.smPlus, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft }}>
+                <Text style={{ ...typography.caption, fontWeight: "700", color: colors.primary }}>확신 {Math.round(candidate.confidence * 100)}%</Text>
+              </View>
+            )}
+          </View>
           <Text style={{ ...typography.resultTitle, color: colors.text }}>{candidate?.item_name} 맞나요?</Text>
           <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>확인하면 배출 방법과 다음 배출일을 보여드려요.</Text>
           <Button label="맞아요, 배출 방법 보기" icon="check" onPress={() => setConfirmed(true)} />

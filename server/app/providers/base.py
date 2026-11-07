@@ -16,6 +16,7 @@ class Classification:
     item_key: str | None          # items의 key 중 하나, 모르면 None
     confidence: float = 0.0       # 0~1
     state: ItemState = field(default_factory=ItemState)  # 판단 못 한 상태는 None
+    mixed: bool = False           # 봉투·더미에 여러 쓰레기가 섞임 → 품목 하나로 답하지 않는다
 
 
 @dataclass
@@ -82,7 +83,8 @@ def build_assist_prompt(items: dict[str, Item], question: str | None,
     }.get(intent, "")
     return (
         "당신은 한국의 자취·생활 도우미입니다. 사용자 질문과 사진을 보고 JSON 하나만 답하세요. "
-        "사진에 여러 물건이 있으면 중심 물건을 보세요. 사진에서 보이지 않는 상태는 추측하지 마세요.\n"
+        "사진에 따로 놓인 물건이 여러 개면 중심 물건을 보세요. 사진에서 보이지 않는 상태는 추측하지 마세요.\n"
+        f"{MIXED_GUIDE}\n"
         f"사용자 질문: {question or '사진 속 물건이나 생활 문제를 알려줘'}\n"
         f"{context}"
         "분리배출 질문이나 버릴 물건 사진이면 kind=recycling. 이때 아래 목록의 item_key만 고르고, "
@@ -96,11 +98,11 @@ def build_assist_prompt(items: dict[str, Item], question: str | None,
         f"분리배출 품목:\n{names}\n"
         f"분리배출 상태: {STATE_GUIDE}\n{DISAMBIGUATION_GUIDE}\n"
         'JSON 형식: {"kind":"recycling|tip|unknown",'
-        '"item_key":"목록 key 또는 unknown","confidence":0.0,'
+        '"item_key":"목록 key 또는 unknown","confidence":0.0,"mixed":false,'
         '"state":{"has_label":null,"has_contents":null,"is_dirty":null,"is_coated":null},'
         '"category":"자취|생활","title":"짧은 제목","answer":"핵심 한두 문장",'
         '"steps":["실행 단계"],"caution":"주의할 점 또는 null"}. '
-        "recycling에서는 item_key/confidence/state만, tip에서는 category/title/answer/steps/caution만 필요합니다."
+        "recycling에서는 item_key/confidence/mixed/state만, tip에서는 category/title/answer/steps/caution만 필요합니다."
     )
 
 
@@ -143,7 +145,16 @@ DISAMBIGUATION_GUIDE = (
     "(4) 계란껍데기(eggshell), 뼈·생선가시(animal_bone), 조개·견과류 껍데기·단단한 씨(shellfish_nut_shell), "
     "양파·마늘 마른 껍질·파뿌리·티백(onion_garlic_peel)은 food_waste가 아니다. "
     "(5) 솜이불·베개·방석(duvet_blanket)과 바퀴 달린 캐리어(furniture_large)는 clothing이 아니다. "
-    "두 품목 사이에서 애매하면 confidence를 0.6 미만으로. 여러 물건이 있으면 가운데 가장 크게 찍힌 것 하나."
+    "(6) 봉투(종량제·비닐봉투) 안에 여러 쓰레기가 섞여 담긴 사진이나 쓰레기 더미는 안에 보이는 물건 하나를 "
+    "고르지 말고 item_key=unknown, confidence=0. 봉투 속 물건은 품목이 아니다. "
+    "두 품목 사이에서 애매하면 confidence를 0.6 미만으로. 따로 놓인 물건이 여러 개면 가운데 가장 크게 찍힌 것 하나."
+)
+
+
+MIXED_GUIDE = (
+    "mixed 판단: 종량제봉투·비닐봉투 안에 여러 쓰레기가 섞여 담겨 있거나, 여러 종류 쓰레기가 한데 쌓인 더미면 mixed=true. "
+    "이때 봉투 속에 보이는 물건(페트병 등) 하나를 품목으로 고르지 말고 item_key=unknown, confidence=0. "
+    "물건 하나(또는 같은 물건 여러 개)만 찍힌 사진이면 mixed=false."
 )
 
 
@@ -160,8 +171,8 @@ def build_prompt(items: dict[str, Item], question: str | None = None) -> str:
         f"{task}\n아래 목록의 key 중에서만 고르고, 목록에 없거나 확실하지 않으면 \"unknown\".\n\n"
         f"품목 목록:\n{_item_lines(items)}\n\n"
         f"{DISAMBIGUATION_GUIDE}\n\n"
-        f"상태: {STATE_GUIDE}\n\n"
-        'JSON 하나만 출력: {"item_key": "<key 또는 unknown>", "confidence": 0~1, '
+        f"상태: {STATE_GUIDE}\n\n{MIXED_GUIDE}\n\n"
+        'JSON 하나만 출력: {"item_key": "<key 또는 unknown>", "confidence": 0~1, "mixed": true|false, '
         '"state": {"has_label": true|false|null, "has_contents": ..., "is_dirty": ..., "is_coated": ...}}'
     )
 
@@ -173,6 +184,8 @@ def parse_response(text: str, items: dict[str, Item]) -> Classification:
         data = json.loads(m.group(0)) if m else {}
     except json.JSONDecodeError:
         data = {}
+    if data.get("mixed") is True:
+        return Classification(None, 0.0, mixed=True)
     key = data.get("item_key")
     if key not in items:
         return Classification(None, 0.0)
