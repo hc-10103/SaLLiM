@@ -65,6 +65,8 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
     store = store or data.load()       # 데이터가 틀리면 여기서 DataError로 기동 실패
     waste_store = waste_store or waste_data.load()
     provider = provider or get_provider()
+    if getattr(provider, "name", "") == "mock":
+        logger.warning("VISION_PROVIDER=mock — 사진·생활 질문에 예시 답만 나와요. 실제 답은 server/.env에 VISION_PROVIDER=gemini")
     tavily = tavily or (TavilySearch(os.environ["TAVILY_API_KEY"])
                         if os.environ.get("TAVILY_API_KEY") else None)
     if web_cache is None and use_default_store:
@@ -115,7 +117,7 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
 
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        return {"status": "ok", "provider": getattr(provider, "name", "unknown")}
 
     @app.get("/regions", response_model=list[Region])
     def regions():
@@ -149,6 +151,15 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
         if key:
             return respond(Classification(key, 1.0, infer_text_state(req.question, store.items[key])), region, area)
         return respond(ask_provider(provider.match_text, req.question, store.items), region, area)
+
+    def ai_estimate(question: str | None, image: bytes | None) -> WebAdvice | None:
+        estimate = getattr(provider, "estimate_recycling", None)
+        if not callable(estimate):
+            return None
+        try:
+            return ask_provider(estimate, question, image)
+        except HTTPException:
+            return None
 
     MIXED_MSG = ("봉투 안에 여러 쓰레기가 섞여 있어서 하나로 판단하기 어려워요. "
                  "버릴 물건을 하나씩 꺼내 찍거나, 이름으로 물어봐 주세요.")
@@ -197,7 +208,8 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
         decision = (ask_provider(assist_with_intent, req.question, image, store.items, intent)
                     if callable(assist_with_intent)
                     else ask_provider(provider.assist, req.question, image, store.items))
-        if decision.classification is not None and decision.classification.mixed:
+        if (decision.classification is not None and decision.classification.mixed
+                and decision.classification.item_key is None):
             return AssistResponse(kind="unknown", message=MIXED_MSG)
         if (decision.kind == "recycling" and decision.classification is not None
                 and decision.classification.item_key is not None
@@ -266,6 +278,9 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
                         searched_on=datetime.now(KST).date().isoformat(),
                         note="AI 요약을 확인하지 못해 검색한 공식 자료를 직접 보여드려요.",
                     ))
+                guess = ai_estimate(req.question, image)
+                if guess is not None:
+                    return AssistResponse(kind="web", web=guess)
                 return AssistResponse(kind="unknown", message=(
                     "공식 기관 자료에서 해당 물건의 배출 방법을 확인하지 못했어요. "
                     "물건 이름과 재질을 더 자세히 알려주세요."
@@ -276,6 +291,9 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
                 web = ask_provider(search, req.question, image, region.name)
             except HTTPException as exc:
                 if exc.status_code in (502, 503, 504):
+                    guess = ai_estimate(req.question, image)
+                    if guess is not None:
+                        return AssistResponse(kind="web", web=guess)
                     return AssistResponse(kind="unknown", message=(
                         "저장된 품목에서 찾지 못했고 지금은 웹 검색을 사용할 수 없어요. "
                         "Gemini API 요금제·사용 한도를 확인하거나 물건 이름과 재질을 더 자세히 알려주세요."
@@ -285,6 +303,10 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
                 if image is None and req.question and web_cache is not None:
                     web_cache.put(req.question, req.region_id, req.area_id, web)
                 return AssistResponse(kind="web", web=web)
+        if recycling_question:
+            guess = ai_estimate(req.question, image)
+            if guess is not None:
+                return AssistResponse(kind="web", web=guess)
         return AssistResponse(kind="unknown", message="확인 가능한 배출 자료를 찾지 못했어요. 물건 이름이나 재질을 더 구체적으로 알려주세요.")
 
     @app.post("/ask/followup", response_model=AskResponse)

@@ -33,7 +33,7 @@ export default function TabsLayout() {
     })}>
       <Tabs.Screen name="index" options={{ title: "홈" }} />
       <Tabs.Screen name="camera" options={{ title: "찍기" }} />
-      <Tabs.Screen name="ask" options={{ title: "물어보기" }} />
+      <Tabs.Screen name="ask" options={{ title: "검색" }} />
       <Tabs.Screen name="favorites" options={{ title: "즐겨찾기" }} />
       <Tabs.Screen name="settings" options={{ title: "설정" }} />
     </Tabs>

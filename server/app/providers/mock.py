@@ -14,7 +14,8 @@ class MockVisionProvider(VisionProvider):
         if image.startswith(b"MOCK:"):
             parts = image[5:].decode("utf-8", "ignore").strip().split(":")
             if parts[0] == "mixed":  # 여러 쓰레기가 섞인 봉투 사진 흉내
-                return Classification(None, 0.0, mixed=True)
+                key = "general_waste_bag" if "general_waste_bag" in items else None
+                return Classification(key, 0.9 if key else 0.0, mixed=True)
             if parts[0] in items:
                 conf = float(parts[1]) if len(parts) > 1 else 0.9
                 return Classification(parts[0], conf)

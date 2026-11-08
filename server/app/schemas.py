@@ -72,7 +72,7 @@ class WebAdvice(BaseModel):
     item_name: str = Field(min_length=1, max_length=80)
     answer: str = Field(min_length=1, max_length=600)
     steps: list[str] = Field(min_length=1, max_length=5)
-    sources: list[WebSource] = Field(min_length=1, max_length=5)
+    sources: list[WebSource] = Field(default_factory=list, max_length=5)  # 비어 있으면 AI 추정 안내
     searched_on: str
     note: str = "웹에서 찾은 일반 안내예요. 배출 요일·장소는 거주지 지자체나 공동주택 안내를 확인하세요."
 

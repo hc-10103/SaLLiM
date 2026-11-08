@@ -78,6 +78,35 @@ class GeminiVisionProvider(VisionProvider):
         except (ValueError, AttributeError):
             return None
 
+    def estimate_recycling(self, question: str | None, image: bytes | None) -> WebAdvice | None:
+        """저장 품목·검색 근거가 없을 때 마지막 수단. 출처 없는 AI 추정임을 화면에 밝힌다."""
+        parts: list[dict] = []
+        if image is not None:
+            parts.append({"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode()}})
+        parts.append({"text": (
+            "한국의 생활쓰레기 분리배출 도우미입니다. 사진과 사용자 설명을 함께 보고, "
+            "한국 일반 분리배출 원칙(재활용품은 비우고 헹궈 재질별로, 오염돼 씻기지 않으면 종량제 봉투, "
+            "건전지·형광등·폐의약품은 전용 수거함, 큰 가구·가전은 대형폐기물 신고)에 따라 안내하세요. "
+            "사용자 설명이 있으면 사진보다 우선해서 반영하세요. "
+            "지역 배출 요일·시간·수수료·전화번호는 지어내지 마세요. "
+            "물건을 전혀 알아볼 수 없을 때만 item_name을 빈 문자열로 답하세요. "
+            f"사용자 설명: {(question or '없음')[:300]}\n"
+            'JSON 하나만: {"item_name":"물건 이름(짧게)","answer":"결론 한두 문장","steps":["실행 단계 1~4개"]}'
+        )})
+        try:
+            payload = json.loads(self._call(parts, max_tokens=600))
+            name = str(payload.get("item_name") or "").strip()
+            steps = [str(x).strip() for x in payload.get("steps") or [] if str(x).strip()][:4]
+            answer = str(payload.get("answer") or "").strip()
+            if not name or not answer or not steps:
+                return None
+            return WebAdvice(item_name=name[:80], answer=answer[:600], steps=steps, sources=[],
+                             searched_on=datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat(),
+                             note="저장된 공식 품목 자료에 없어 AI가 사진과 설명을 보고 일반 원칙으로 정리했어요. "
+                                  "헷갈리면 지자체 안내로 한 번 더 확인해 주세요.")
+        except (ValueError, AttributeError, TypeError, ValidationError):
+            return None
+
     def summarize_search_results(self, item_question: str, hits: list[SearchHit]) -> WebAdvice | None:
         """Tavily의 공식 자료 발췌문만 이용해 화면용 답변을 조립한다."""
         evidence = "\n".join(f"[{index}] {hit.source.title}\n{hit.excerpt}"

@@ -153,7 +153,7 @@ DISAMBIGUATION_GUIDE = (
 
 MIXED_GUIDE = (
     "mixed 판단: 종량제봉투·비닐봉투 안에 여러 쓰레기가 섞여 담겨 있거나, 여러 종류 쓰레기가 한데 쌓인 더미면 mixed=true. "
-    "이때 봉투 속에 보이는 물건(페트병 등) 하나를 품목으로 고르지 말고 item_key=unknown, confidence=0. "
+    "이때 봉투 속에 보이는 물건(페트병 등) 하나를 품목으로 고르지 마세요(서버가 종량제 봉투 안내로 바꿉니다). "
     "물건 하나(또는 같은 물건 여러 개)만 찍힌 사진이면 mixed=false."
 )
 
@@ -185,6 +185,9 @@ def parse_response(text: str, items: dict[str, Item]) -> Classification:
     except json.JSONDecodeError:
         data = {}
     if data.get("mixed") is True:
+        # 섞인 봉투는 봉투 속 물건이 아니라 '종량제 봉투' 자체로 안내한다 (재활용품은 빼라고 함께 안내).
+        if "general_waste_bag" in items:
+            return Classification("general_waste_bag", 0.9, mixed=True)
         return Classification(None, 0.0, mixed=True)
     key = data.get("item_key")
     if key not in items:

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AssistCard from "./AssistCard";
@@ -31,6 +31,8 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
   const [purpose, setPurpose] = useState<Purpose>("recycling");
   const [checking, setChecking] = useState(false); // ⑨ 되묻기로 확인 중
   const [autoFollowUp, setAutoFollowUp] = useState(false);
+  const [draft, setDraft] = useState(false); // 찍은 뒤 상황 설명을 받는 단계
+  const [note, setNote] = useState("");
   const req = useRef(0); // 취소하면 늦게 온 응답을 버린다
   const scanSteps = purpose === "recycling"
     ? ["이미지 분석", "품목 분류", "우리 동네 규칙 확인"]
@@ -48,8 +50,18 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     else router.replace("/");
   }
 
-  async function send(img: string) {
+  // 찍은 사진을 받아 두고 상황 설명 단계로
+  function stage(img: string) {
+    setB64(img);
+    setNote("");
+    setErr(null);
+    setResult(null);
+    setDraft(true);
+  }
+
+  async function send(img: string, extra = note) {
     if (!regionId) return;
+    setDraft(false);
     setErr(null);
     setResult(null);
     setConfirmed(false);
@@ -57,7 +69,8 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     setBusy(true);
     const token = ++req.current;
     try {
-      const res = await assist({ region_id: regionId, area_id: areaId, image_base64: img,
+      const question = extra.trim() || undefined; // 사용자가 덧붙인 상황 설명
+      const res = await assist({ region_id: regionId, area_id: areaId, image_base64: img, question,
         purpose: purpose === "recycling" ? "recycling" : undefined });
       if (token !== req.current) return;
       setResult(res);
@@ -81,7 +94,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     try {
       const img = await pickImageBase64(source);
       setPreparing(false);
-      if (img) { setB64(img); await send(img); }
+      if (img) stage(img);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "오류가 났어요");
     } finally {
@@ -118,10 +131,14 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     setErr(null);
     setB64(null);
     setChecking(false);
+    setDraft(false);
+    setNote("");
   }
 
   const candidate = result?.kind === "recycling" ? result.recycling : null;
-  const needsConfirmation = !!(candidate?.confident && candidate.item_key && candidate.item_name);
+  // 상황을 직접 적었으면 "맞나요?"를 다시 묻지 않는다 — 이미 설명한 걸 반영한 답을 바로 보여준다
+  const needsConfirmation = !!(candidate?.confident && candidate.item_key && candidate.item_name && !note.trim());
+  const notFound = !!result && (result.kind === "unknown" || (result.kind === "recycling" && !candidate?.item_key && !result.recycling_list?.length));
   const lowConfidence = !!(candidate && !candidate.confident && candidate.item_key && candidate.item_name && !confirmed);
   const scanning = busy && !!b64 && !preparing;
   const regionLabel = region === null ? "전국 공통" : region?.name ?? null;
@@ -141,10 +158,60 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     </View>;
   }
 
+  // 찍은 뒤: 사진 확인 + 상황 설명(선택)
+  if (draft && b64 && !result) {
+    const examples = purpose === "recycling"
+      ? ["기름·양념이 묻어 있어요", "라벨을 못 뗐어요", "안에 내용물이 남아 있어요", "여러 재질이 붙어 있어요"]
+      : ["어떻게 해결해야 할지 모르겠어요", "냄새가 나요", "얼룩이 안 지워져요"];
+    return (
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section, gap: space.md }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="다시 찍기" onPress={retake} hitSlop={8}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 }}>
+              <Icon name="chevronLeft" size={22} color={colors.primary} />
+              <Text style={{ ...typography.label, color: colors.primary }}>다시 찍기</Text>
+            </Pressable>
+            <Text style={{ ...typography.caption, fontWeight: "700", color: colors.subtext }}>
+              {purpose === "recycling" ? "분리배출" : "생활 문제"}
+            </Text>
+          </View>
+          <Image source={{ uri: `data:image/jpeg;base64,${b64}` }} accessibilityLabel="찍은 사진" resizeMode="cover"
+            style={{ width: "100%", aspectRatio: 4 / 3, maxHeight: 320, borderRadius: radius.sheet, borderCurve: "continuous",
+              backgroundColor: colors.cameraBg }} />
+          <View style={{ gap: space.xs }}>
+            <Text accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>상황을 덧붙여 주세요</Text>
+            <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>
+              사진만으로 안 보이는 건 글로 알려주면 더 정확해요. 비워 둬도 괜찮아요.
+            </Text>
+          </View>
+          <TextInput accessibilityLabel="사진 상황 설명" value={note} onChangeText={setNote} multiline maxLength={200}
+            placeholder={purpose === "recycling" ? "예: 기름이 묻은 배달 용기예요, 뚜껑은 다른 재질이에요" : "예: 욕실 실리콘에 검은 얼룩이 생겼어요"}
+            placeholderTextColor={colors.disabledText}
+            style={{ minHeight: 96, padding: space.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+              borderRadius: radius.button, borderCurve: "continuous", color: colors.text, textAlignVertical: "top", ...typography.body }} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
+            {examples.map((e) => (
+              <Pressable key={e} accessibilityRole="button" accessibilityLabel={`${e} 추가`}
+                onPress={() => setNote((v) => (v.includes(e) ? v : (v.trim() ? `${v.trim()} ${e}` : e)).slice(0, 200))}
+                style={({ pressed }) => ({ paddingHorizontal: space.smPlus, minHeight: 34, justifyContent: "center", borderRadius: radius.pill,
+                  borderWidth: 1, borderColor: colors.divider, backgroundColor: pressed ? colors.tint : colors.surface })}>
+                <Text style={{ ...typography.caption, fontWeight: "600", color: colors.text }}>+ {e}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {isMock && <Notice tone="warn" title="예시 모드 — 서버에 연결되지 않았어요">지금은 실제 인식 대신 고정된 예시 결과가 나와요.</Notice>}
+          <Button label={note.trim() ? "설명과 함께 분석하기" : "사진만으로 분석하기"} icon="sparkle" onPress={() => send(b64)} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   // ④ 촬영 — 결과가 없으면 카메라 뷰파인더
   if (!result) {
     return <CameraViewfinder purpose={purpose} onPurpose={(p) => { setPurpose(p); setErr(null); }}
-      onShot={(img) => { setB64(img); send(img); }} onPick={go} onAskByName={() => router.push("/ask")}
+      onShot={stage} onPick={go} onAskByName={() => router.push("/ask")}
       onBack={asTab ? undefined : goBack} regionLabel={isMock ? "예시 모드(서버 미연결) ·" + (regionLabel ? ` ${regionLabel}` : "") : regionLabel} disabled={busy || !regionId} error={err} />;
   }
 
@@ -189,6 +256,23 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
       )}
       {regionId && (!needsConfirmation || confirmed) &&
         <AssistCard key={n} result={result} regionId={regionId} areaId={areaId} onChange={setResult} autoOpenFollowUp={autoFollowUp} />}
+      {/* 못 알아봤을 때: 같은 사진에 설명을 더해 다시 분석 */}
+      {notFound && b64 && (
+        <Card style={{ gap: space.smPlus }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+            <Icon name="chat" size={20} color={colors.primary} />
+            <Text style={{ ...typography.section, color: colors.text }}>추가로 설명해 주세요</Text>
+          </View>
+          <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>
+            물건 이름, 재질, 어떤 상태인지 적어 주면 같은 사진으로 다시 분석해요.
+          </Text>
+          <TextInput accessibilityLabel="추가 설명" value={note} onChangeText={setNote} multiline maxLength={200}
+            placeholder="예: 일반쓰레기를 모은 종량제 봉투예요 / 코팅된 종이컵이에요" placeholderTextColor={colors.disabledText}
+            style={{ minHeight: 80, padding: space.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+              borderRadius: radius.button, borderCurve: "continuous", color: colors.text, textAlignVertical: "top", ...typography.body }} />
+          <Button label="설명 더해서 다시 분석하기" icon="refresh" disabled={!note.trim() || busy} onPress={() => send(b64)} />
+        </Card>
+      )}
     </ScrollView>
   );
 }

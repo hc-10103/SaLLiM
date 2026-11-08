@@ -123,6 +123,11 @@ def assemble(item_key: str, item: Item, region: RegionData,
             answer = (f"{eun(item.name)} 먼저 음식물과 국물을 비우고 기름기를 씻어 보세요. "
                       f"{item.conditions['is_dirty']} "
                       f"깨끗이 씻겼다면 {euro(item.category)} 배출해요.")
+        elif state.is_dirty is True and "일반쓰레기" in item.conditions.get("is_dirty", ""):
+            # '기름 묻은 페트병'처럼 오염을 말하면 기본 배출법보다 오염 기준을 결론으로 둔다.
+            others = [n for n in notes if n != item.conditions["is_dirty"]]
+            answer = " ".join([f"오염된 {item.name}이라면, {item.conditions['is_dirty']}",
+                               f"물로 헹궈서 깨끗해지면 {euro(item.category)} 배출해요.", *others])
         else:
             answer = " ".join(notes) + " " + answer
     if not confident:
@@ -134,6 +139,11 @@ def assemble(item_key: str, item: Item, region: RegionData,
             confident=False, confidence=round(confidence, 2), follow_up=None, sources=[], note=None,
         )
 
+    if (item_key != "plastic_container" and state.is_dirty is True
+            and "일반쓰레기" in item.conditions.get("is_dirty", "")):
+        steps = ["물로 헹궈 보고, 기름·이물질이 지워지지 않으면 일반쓰레기(종량제 봉투)로 배출하기",
+                 *[f"깨끗해졌다면: {step}" if i == 0 else step for i, step in enumerate(steps)]]
+        notes = [n for n in notes if n != item.conditions["is_dirty"]]
     if item_key == "plastic_container" and state.is_dirty is True:
         steps[-1] = ("깨끗이 씻긴 용기는 플라스틱류로, 기름·양념이 지워지지 않는 용기는 "
                      "일반쓰레기(종량제 봉투)로 배출하기")

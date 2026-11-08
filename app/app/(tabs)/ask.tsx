@@ -101,8 +101,12 @@ export default function Ask() {
       <View style={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.page, paddingBottom: space.smPlus,
         flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm,
         backgroundColor: colors.bg, borderBottomWidth: visibleMessages.length ? 1 : 0, borderColor: colors.divider }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="홈으로" onPress={() => router.navigate("/")} hitSlop={8}
+          style={{ width: 40, height: 44, marginLeft: -space.sm, alignItems: "center", justifyContent: "center" }}>
+          <Icon name="chevronLeft" size={26} color={colors.text} />
+        </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text accessibilityRole="header" style={{ ...typography.heading, color: colors.text }}>물어보기</Text>
+          <Text accessibilityRole="header" style={{ ...typography.heading, color: colors.text }}>검색하기</Text>
           {region && <Pressable accessibilityRole="button" accessibilityLabel={`지역 변경, 현재 ${region.name}`}
             onPress={() => router.push("/settings")} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
             <Icon name="pin" size={14} color={colors.subtext} />

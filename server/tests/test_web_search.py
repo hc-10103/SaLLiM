@@ -207,3 +207,33 @@ def test_tavily_quota_error_is_reported_without_exposing_key():
                                         "question": "코르크 마개 어떻게 버려요?"}).json()
     assert body["kind"] == "unknown"
     assert "검색 사용 한도" in body["message"]
+
+
+def test_ai_estimate_when_no_stored_item_or_search():
+    # 저장 품목·검색이 없으면 '모르겠어요' 대신 출처 없는 AI 추정 안내를 준다
+    class EstimatingProvider:
+        name = "gemini"
+
+        def assist(self, question, image, items):
+            return AssistDecision("recycling", Classification(None))
+
+        def estimate_recycling(self, question, image):
+            return WebAdvice(item_name="코르크 마개", answer="종량제 봉투로 버려요.", steps=["일반쓰레기로 배출하기"],
+                             sources=[], searched_on="2026-11-08", note="AI 추정")
+
+    client = TestClient(create_app(store=data.load(FIXTURES), provider=EstimatingProvider()))
+    r = client.post("/assist", json={"region_id": "test-region", "question": "코르크 마개는 어떻게 버려요?"}).json()
+    assert r["kind"] == "web" and r["web"]["sources"] == [] and r["web"]["item_name"] == "코르크 마개"
+
+
+def test_gemini_estimate_parses_json(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+    def fake_post(url, **kwargs):
+        return httpx.Response(200, request=httpx.Request("POST", url), json={"candidates": [{"content": {"parts": [
+            {"text": '{"item_name":"기름 묻은 페트병","answer":"헹궈도 안 지워지면 종량제 봉투로 버려요.",'
+                     '"steps":["물로 헹궈 보기","안 지워지면 일반쓰레기로"]}'}]}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    r = GeminiVisionProvider().estimate_recycling("기름 묻은 페트병", None)
+    assert r is not None and r.sources == [] and len(r.steps) == 2

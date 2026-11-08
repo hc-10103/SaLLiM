@@ -35,3 +35,21 @@ def test_nationwide_has_no_invented_schedule(store):
     assert not national.week
     assert national.time is None
     assert "지자체" in national.note
+
+
+def test_dirty_pet_bottle_leads_with_general_waste(store):
+    # '기름 묻은 페트병' — 기본 배출법(투명페트)보다 오염 기준이 결론으로 와야 한다
+    from app.assemble import assemble
+    from app.match import infer_text_state
+    item = store.items["pet_bottle_clear"]
+    state = infer_text_state("기름 묻은 페트병", item)
+    assert state.is_dirty is True
+    r = assemble("pet_bottle_clear", item, next(iter(store.regions.values())), state, 0.9)
+    assert r.answer.startswith("오염된 투명 페트병이라면") and "일반쓰레기" in r.answer
+    assert "일반쓰레기" in r.steps[0]
+
+
+def test_mixed_bag_maps_to_general_waste_bag(store):
+    from app.providers.base import parse_response
+    c = parse_response('{"item_key":"pet_bottle_clear","confidence":0.9,"mixed":true}', store.items)
+    assert c.item_key == "general_waste_bag" and c.mixed

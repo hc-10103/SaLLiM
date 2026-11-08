@@ -69,7 +69,7 @@ def test_items_list_for_browsing():
 
 
 def test_health():
-    assert c.get("/health").json() == {"status": "ok"}
+    assert c.get("/health").json() == {"status": "ok", "provider": "mock"}
 
 
 def test_ask_text_alias():

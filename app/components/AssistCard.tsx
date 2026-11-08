@@ -79,15 +79,17 @@ export default function AssistCard({ result, regionId, areaId, onChange, autoOpe
         {isMock && <Notice tone="warn" title="예시 데이터예요">실제 안내가 아니에요.</Notice>}
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, alignSelf: "flex-start",
           paddingHorizontal: space.smPlus, paddingVertical: space.xs + 1, borderRadius: radius.pill, backgroundColor: colors.primarySoft }}>
-          <Icon name="search" size={16} color={colors.primary} />
-          <Text style={{ ...typography.label, fontWeight: "700", color: colors.primary }}>웹에서 확인한 자료</Text>
+          <Icon name={web.sources.length ? "search" : "sparkle"} size={16} color={colors.primary} />
+          <Text style={{ ...typography.label, fontWeight: "700", color: colors.primary }}>
+            {web.sources.length ? "웹에서 확인한 자료" : "AI가 사진·설명을 보고 정리"}
+          </Text>
         </View>
         <Text accessibilityRole="header" style={{ ...typography.section, fontSize: 20, lineHeight: 28, color: colors.text }}>
           {web.item_name}
         </Text>
         <Text style={{ ...typography.body, color: colors.text }}>{web.answer}</Text>
         {!!steps.length && <View style={{ gap: space.sm }}>
-          <Text style={{ ...typography.label, color: colors.text }}>확인한 방법</Text>
+          <Text style={{ ...typography.label, color: colors.text }}>{web.sources.length ? "확인한 방법" : "이렇게 해 보세요"}</Text>
           {steps.map((step, index) => <View key={index} style={{ flexDirection: "row", gap: space.smPlus, alignItems: "flex-start" }}>
             <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primarySoft,
               alignItems: "center", justifyContent: "center", marginTop: 1 }}>
@@ -98,7 +100,9 @@ export default function AssistCard({ result, regionId, areaId, onChange, autoOpe
         </View>}
         {!!web.note && <Notice tone="info">{web.note}</Notice>}
         <View style={{ gap: space.sm, borderTopWidth: 1, borderColor: colors.divider, paddingTop: space.smPlus }}>
-          <Text style={{ ...typography.caption, color: colors.subtext }}>검색 확인일 {web.searched_on} · 원문에서 다시 확인하세요</Text>
+          <Text style={{ ...typography.caption, color: colors.subtext }}>
+            {web.sources.length ? `검색 확인일 ${web.searched_on} · 원문에서 다시 확인하세요` : "공식 출처로 확인한 내용은 아니에요 · 지자체 안내로 한 번 더 확인해 주세요"}
+          </Text>
           {web.sources.map((source) => <Text key={source.url} accessibilityRole="link"
             onPress={() => { void Linking.openURL(source.url); }}
             style={{ ...typography.label, color: colors.primary }}>{source.title} ↗</Text>)}
