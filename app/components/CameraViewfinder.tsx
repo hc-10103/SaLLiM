@@ -137,7 +137,7 @@ export default function CameraViewfinder({ purpose, onPurpose, onShot, onPick, o
       </View>
 
       {/* 하단: 앨범 · 셔터 · (균형용 빈칸) */}
-      <View style={{ paddingBottom: space.lg, paddingHorizontal: space.page, gap: space.md }}>
+      <View style={{ paddingBottom: space.lg + (onBack ? insets.bottom : 0), paddingHorizontal: space.page, gap: space.md }}>
         {regionLabel && purpose === "recycling" && (
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
             <Icon name="pin" size={14} color="#CBD5E1" />

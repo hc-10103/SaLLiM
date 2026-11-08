@@ -163,7 +163,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     return (
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section, gap: space.md }}>
+          contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section + (asTab ? 0 : insets.bottom), gap: space.md }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <Pressable accessibilityRole="button" accessibilityLabel="다시 찍기" onPress={retake} hitSlop={8}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 }}>
@@ -216,7 +216,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
   // 결과
   return (
     <ScrollView style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section, gap: space.md }}>
+      contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section + (asTab ? 0 : insets.bottom), gap: space.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Pressable accessibilityRole="button" accessibilityLabel="다시 찍기" onPress={retake} hitSlop={8}
           style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 }}>
