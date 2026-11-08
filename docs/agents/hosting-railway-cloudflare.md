@@ -24,9 +24,8 @@
 아직 로컬 수정 사항을 GitHub로 올리지 않았으므로 호스팅 서비스에서 바로 읽을 수는 없다.
 
 1. Railway에 GitHub 계정으로 가입한다. 제한된 체험 계정이면 외부 API 호출이 막힐 수 있다.
-2. 이 저장소를 소스로 하는 새 서비스를 만든다. **Root Directory는 레포 루트 `/`**로 두고,
-   Dockerfile 경로를 `server/Dockerfile`로 지정한다. Railway 변수로 설정할 때는
-   `RAILWAY_DOCKERFILE_PATH=server/Dockerfile`을 사용한다.
+2. 이 저장소를 소스로 하는 새 서비스를 만든다. **Root Directory는 레포 루트 `/`**로 둔다.
+   루트 `Dockerfile`이 자동 감지되지 않으면 서비스의 Build 설정에서 Builder를 Dockerfile로 선택한다.
 3. 서비스 변수에 다음 값을 설정한다. 실제 키는 브라우저 앱이나 GitHub에 입력하지 않는다.
 
    | 변수 | 값 |

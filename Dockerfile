@@ -1,5 +1,5 @@
 # 레포 루트에서 빌드 (data/를 같이 넣기 위해):
-#   docker build -f server/Dockerfile -t sallim-api .
+#   docker build -t sallim-api .
 #   docker run -p 8000:8000 --env-file server/.env sallim-api
 FROM python:3.12-slim
 WORKDIR /srv

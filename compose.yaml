@@ -5,7 +5,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: server/Dockerfile
+      dockerfile: Dockerfile
     env_file: server/.env
     environment:
       SALLIM_WEB_CACHE_PATH: /srv/cache/web_advice_cache.json
