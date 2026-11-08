@@ -51,7 +51,7 @@ export default function Items() {
 
   return <ScrollView style={{ backgroundColor: colors.bg }}
     contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm,
-      paddingBottom: space.section, gap: space.md }}
+      paddingBottom: space.section + insets.bottom, gap: space.md }}
     keyboardShouldPersistTaps="handled">
     <Pressable accessibilityRole="button" onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
       style={{ paddingVertical: space.sm }}>

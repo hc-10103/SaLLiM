@@ -83,7 +83,7 @@ export default function FavoriteItem() {
 
   return <ScrollView style={{ backgroundColor: colors.bg }}
     contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm,
-      paddingBottom: space.section, gap: space.md }}>
+      paddingBottom: space.section + insets.bottom, gap: space.md }}>
     <Pressable accessibilityRole="button" onPress={() => router.canGoBack() ? router.back() : router.replace("/favorites")} hitSlop={8}
       style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", minHeight: 44 }}>
       <Icon name="chevronLeft" size={22} color={colors.primary} />

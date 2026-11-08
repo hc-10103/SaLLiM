@@ -78,7 +78,7 @@ export default function ScheduleEdit() {
 
   return (
     <ScrollView keyboardShouldPersistTaps="handled" style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section, gap: space.lg }}>
+      contentContainerStyle={{ padding: space.page, paddingTop: insets.top + space.sm, paddingBottom: space.section + insets.bottom, gap: space.lg }}>
       <Pressable accessibilityRole="button" accessibilityLabel="이전 화면으로" onPress={goBack} hitSlop={8}
         style={{ flexDirection: "row", alignItems: "center", gap: 2, minHeight: 44, alignSelf: "flex-start" }}>
         <Icon name="chevronLeft" size={22} color={colors.primary} />

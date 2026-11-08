@@ -1,5 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import { useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon, { type IconName } from "../../components/Icon";
 import { colors, sizes } from "../../theme";
 import { getRegionId } from "../../lib/region";
@@ -11,6 +12,8 @@ const TAB_ICONS: Record<string, IconName> = {
 
 export default function TabsLayout() {
   const router = useRouter();
+  // 안드로이드 하단 내비게이션 바(뒤로·홈 버튼)에 탭이 가리지 않게 그 높이만큼 띄운다
+  const insets = useSafeAreaInsets();
   // 첫 실행: 온보딩 → 동네 선택(설정) 순서
   useEffect(() => {
     (async () => {
@@ -24,8 +27,8 @@ export default function TabsLayout() {
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.subtext,
       tabBarLabelStyle: { fontSize: 12, fontWeight: "600", marginTop: 2 },
-      tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider, height: sizes.tabBarMinHeight + 6,
-        paddingTop: 8, paddingBottom: 8 },
+      tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider, height: sizes.tabBarMinHeight + 6 + insets.bottom,
+        paddingTop: 8, paddingBottom: 8 + insets.bottom },
       sceneStyle: { backgroundColor: colors.bg },
       tabBarIcon: ({ color, focused }) => (
         <Icon name={TAB_ICONS[route.name] ?? "home"} size={24} color={String(color)} strokeWidth={focused ? 2.1 : 1.75} />
