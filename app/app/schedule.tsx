@@ -87,7 +87,7 @@ export default function ScheduleEdit() {
       <View style={{ gap: space.xs }}>
         <Text accessibilityRole="header" style={{ ...typography.heading, color: colors.text }}>우리 집 배출 요일</Text>
         <Text style={{ ...typography.body, color: colors.subtext }}>
-          아파트 단지 안내문처럼 우리 집 기준이 따로 있으면 직접 정해 두세요. 홈의 오늘 배출 안내가 이 기준으로 바뀌어요.
+          아파트 단지 안내문처럼 우리 집 기준이 따로 있으면 직접 정해 두세요. 홈과 품목별 배출 안내가 이 기준으로 바뀌어요.
         </Text>
       </View>
 

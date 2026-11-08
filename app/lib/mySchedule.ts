@@ -45,6 +45,19 @@ export function scheduleTime(s: MySchedule | null) {
   return `${s.start || "?"} ~ ${s.end || "?"}`;
 }
 
+export function hasMyScheduleCategory(category: string | null): category is typeof SCHEDULE_CATEGORIES[number] {
+  return !!category && (SCHEDULE_CATEGORIES as readonly string[]).includes(category);
+}
+
+export function daysForMyScheduleCategory(s: MySchedule, category: typeof SCHEDULE_CATEGORIES[number]) {
+  return WEEK.filter((day) => {
+    const categories = s.week[day] ?? [];
+    return categories.includes(category)
+      || (category === "음식물" && categories.includes("음식물쓰레기"))
+      || (category !== "일반쓰레기" && category !== "음식물" && categories.includes("재활용품"));
+  });
+}
+
 export function useMySchedule() {
   const [value, setValue] = useState<MySchedule | null>(cache ?? null);
   const [ready, setReady] = useState(cache !== undefined);

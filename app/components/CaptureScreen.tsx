@@ -4,11 +4,11 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AssistCard from "./AssistCard";
 import CameraViewfinder, { type Purpose } from "./CameraViewfinder";
-import { LowConfidenceView, ScanningView } from "./CaptureStatus";
+import { ScanningView } from "./CaptureStatus";
 import Icon from "./Icon";
 import { ErrorBox } from "./Status";
 import { Button, Card, Notice } from "./ui";
-import { assist, isMock } from "../lib/api";
+import { assist, followUp, isMock } from "../lib/api";
 import type { AssistResponse } from "../lib/api-types";
 import { pickImageBase64 } from "../lib/image";
 import { useRegionSelection } from "../lib/useRegion";
@@ -25,11 +25,12 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<AssistResponse | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [b64, setB64] = useState<string | null>(null); // 마지막 사진 — 다시 시도용
   const [n, setN] = useState(0); // 새 사진마다 답변 컴포넌트 초기화
   const [step, setStep] = useState(0);
   const [purpose, setPurpose] = useState<Purpose>("recycling");
-  const [checking, setChecking] = useState(false); // ⑨ 되묻기로 확인 중
+  const [checking, setChecking] = useState(false); // 추정한 품목을 사용자가 확인한 뒤 안내 불러오는 중
   const [autoFollowUp, setAutoFollowUp] = useState(false);
   const [draft, setDraft] = useState(false); // 찍은 뒤 상황 설명을 받는 단계
   const [note, setNote] = useState("");
@@ -56,6 +57,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     setNote("");
     setErr(null);
     setResult(null);
+    setRejected(false);
     setDraft(true);
   }
 
@@ -65,6 +67,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     setErr(null);
     setResult(null);
     setConfirmed(false);
+    setRejected(false);
     setAutoFollowUp(false);
     setBusy(true);
     const token = ++req.current;
@@ -103,16 +106,21 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     }
   }
 
-  // ⑨ → 품목 이름으로 다시 물어 확정 답 + 되묻기 질문을 받는다 (사진 분석은 다시 안 함)
-  async function confirmByQuestion(name: string) {
-    if (!regionId || checking) return;
+  // 품목을 직접 확인한 뒤에만 저장된 배출 안내를 불러온다.
+  async function confirmItem(itemKey: string) {
+    if (!regionId || checking || !candidate) return;
+    if (candidate.confident) {
+      setConfirmed(true);
+      return;
+    }
     setChecking(true);
     setErr(null);
     const token = ++req.current;
     try {
-      const res = await assist({ region_id: regionId, area_id: areaId, question: `${name} 분리배출 방법`, purpose: "recycling" });
+      const res = await followUp({ region_id: regionId, area_id: areaId,
+        item_key: itemKey, state: candidate.answered_state ?? {} });
       if (token !== req.current) return;
-      setResult(res);
+      setResult((current) => current ? { ...current, kind: "recycling", recycling: res } : current);
       setConfirmed(true);
       setAutoFollowUp(true);
       setN((x) => x + 1);
@@ -127,6 +135,7 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
     req.current++;
     setResult(null);
     setConfirmed(false);
+    setRejected(false);
     setAutoFollowUp(false);
     setErr(null);
     setB64(null);
@@ -136,27 +145,15 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
   }
 
   const candidate = result?.kind === "recycling" ? result.recycling : null;
-  // 상황을 직접 적었으면 "맞나요?"를 다시 묻지 않는다 — 이미 설명한 걸 반영한 답을 바로 보여준다
-  const needsConfirmation = !!(candidate?.confident && candidate.item_key && candidate.item_name && !note.trim());
+  // 상황 설명을 적었더라도 사진 속 품목까지 확인한 것은 아니다.
+  const needsConfirmation = !!(candidate?.item_key && candidate.item_name && !confirmed);
   const notFound = !!result && (result.kind === "unknown" || (result.kind === "recycling" && !candidate?.item_key && !result.recycling_list?.length));
-  const lowConfidence = !!(candidate && !candidate.confident && candidate.item_key && candidate.item_name && !confirmed);
   const scanning = busy && !!b64 && !preparing;
   const regionLabel = region === null ? "전국 공통" : region?.name ?? null;
 
   // ⑤ 인식 중
-  if (scanning) return <ScanningView photo={b64} steps={scanSteps} step={step} onCancel={cancel} />;
-
-  // ⑨ 확신 낮음
-  if (lowConfidence && candidate?.item_name) {
-    return <View style={{ flex: 1 }}>
-      <LowConfidenceView itemName={candidate.item_name} confidence={candidate.confidence} photo={b64} busy={checking}
-        onConfirm={() => confirmByQuestion(candidate.item_name!)} onRetake={retake}
-        onAskByName={() => { retake(); router.push("/ask"); }} />
-      {err && <View style={{ position: "absolute", left: space.page, right: space.page, bottom: insets.bottom + space.lg }}>
-        <ErrorBox message={err} onRetry={() => confirmByQuestion(candidate.item_name!)} />
-      </View>}
-    </View>;
-  }
+  if (scanning) return <ScanningView photo={b64} steps={scanSteps} step={step}
+    title={purpose === "recycling" ? "물건을 분석하고 있어요" : "사진 속 상황을 살펴보고 있어요"} onCancel={cancel} />;
 
   // 찍은 뒤: 사진 확인 + 상황 설명(선택)
   if (draft && b64 && !result) {
@@ -183,7 +180,8 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
           <View style={{ gap: space.xs }}>
             <Text accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>상황을 덧붙여 주세요</Text>
             <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>
-              사진만으로 안 보이는 건 글로 알려주면 더 정확해요. 비워 둬도 괜찮아요.
+              {purpose === "recycling" ? "사진만으로 안 보이는 건 글로 알려주면 더 정확해요. 비워 둬도 괜찮아요."
+                : "어떤 점이 궁금한지 덧붙이면 상황을 더 잘 이해할 수 있어요. 비워 둬도 괜찮아요."}
             </Text>
           </View>
           <TextInput accessibilityLabel="사진 상황 설명" value={note} onChangeText={setNote} multiline maxLength={200}
@@ -232,26 +230,36 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
       {isMock && <Notice tone="warn" title="예시 모드 — 서버에 연결되지 않았어요">
         지금 결과는 실제 인식이 아닌 고정된 예시예요. app/.env에 EXPO_PUBLIC_API_URL을 넣고 npx expo start -c로 다시 켜 주세요.
       </Notice>}
-      {region === null && <Notice tone="info" title="지금은 전국 공통 기준으로 답해요">설정에서 동네를 고르면 배출 요일까지 알려드려요.</Notice>}
+      {region === null && purpose === "recycling" && <Notice tone="info" title="지금은 전국 공통 기준으로 답해요">설정에서 동네를 고르면 배출 요일까지 알려드려요.</Notice>}
 
-      {err && <ErrorBox message={err} onRetry={b64 ? () => send(b64) : undefined} />}
-      {needsConfirmation && !confirmed && (
+      {err && !needsConfirmation && <ErrorBox message={err} onRetry={b64 ? () => send(b64) : undefined} />}
+      {needsConfirmation && (
         <Card style={{ gap: space.smPlus }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={{ ...typography.caption, color: colors.subtext }}>사진 속 물건이</Text>
+            <Text style={{ ...typography.caption, color: colors.subtext }}>AI가 추정한 물건</Text>
             {typeof candidate?.confidence === "number" && candidate.confidence > 0 && (
               <View style={{ paddingHorizontal: space.smPlus, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft }}>
-                <Text style={{ ...typography.caption, fontWeight: "700", color: colors.primary }}>확신 {Math.round(candidate.confidence * 100)}%</Text>
+                <Text style={{ ...typography.caption, fontWeight: "700", color: colors.primary }}>확신도 {Math.round(candidate.confidence * 100)}% · 참고용</Text>
               </View>
             )}
           </View>
-          <Text style={{ ...typography.resultTitle, color: colors.text }}>{candidate?.item_name} 맞나요?</Text>
-          <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>확인하면 배출 방법과 다음 배출일을 보여드려요.</Text>
-          <Button label="맞아요, 배출 방법 보기" icon="check" onPress={() => setConfirmed(true)} />
-          <View style={{ flexDirection: "row", gap: space.sm }}>
-            <Button label="다시 찍기" variant="secondary" style={{ flex: 1 }} onPress={retake} />
-            <Button label="이름으로 묻기" variant="secondary" style={{ flex: 1 }} onPress={() => { retake(); router.push("/ask"); }} />
-          </View>
+          <Text style={{ ...typography.resultTitle, color: colors.text }}>
+            {rejected ? "다른 물건이군요" : `${candidate?.item_name} 맞나요?`}
+          </Text>
+          <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>
+            {rejected ? "이름을 직접 입력하거나 다시 촬영해 주세요." : "사진 속 물건을 확인하면 배출 방법을 보여드려요."}
+          </Text>
+          {rejected ? <>
+            <Button label="이름 직접 입력하기" icon="search" onPress={() => { retake(); router.push("/ask"); }} />
+            <Button label="다시 촬영하기" icon="camera" variant="secondary" onPress={retake} />
+            <Button label="추정 결과 다시 보기" variant="text" onPress={() => setRejected(false)} />
+          </> : <>
+            <Button label="맞아요, 배출 방법 보기" icon="check" loading={checking} disabled={checking}
+              onPress={() => confirmItem(candidate!.item_key!)} />
+            <Button label="아니요, 다른 물건이에요" variant="secondary" disabled={checking}
+              onPress={() => setRejected(true)} />
+          </>}
+          {err && <ErrorBox message={err} onRetry={() => confirmItem(candidate!.item_key!)} />}
         </Card>
       )}
       {regionId && (!needsConfirmation || confirmed) &&
@@ -264,10 +272,12 @@ export default function CaptureScreen({ asTab = false }: { asTab?: boolean }) {
             <Text style={{ ...typography.section, color: colors.text }}>추가로 설명해 주세요</Text>
           </View>
           <Text style={{ ...typography.label, fontWeight: "500", color: colors.subtext }}>
-            물건 이름, 재질, 어떤 상태인지 적어 주면 같은 사진으로 다시 분석해요.
+            {purpose === "recycling" ? "물건 이름, 재질, 어떤 상태인지 적어 주면 같은 사진으로 다시 분석해요."
+              : "어떤 문제가 생겼고 무엇이 궁금한지 적어 주면 같은 사진으로 다시 분석해요."}
           </Text>
           <TextInput accessibilityLabel="추가 설명" value={note} onChangeText={setNote} multiline maxLength={200}
-            placeholder="예: 일반쓰레기를 모은 종량제 봉투예요 / 코팅된 종이컵이에요" placeholderTextColor={colors.disabledText}
+            placeholder={purpose === "recycling" ? "예: 일반쓰레기를 모은 종량제 봉투예요 / 코팅된 종이컵이에요"
+              : "예: 욕실 실리콘에 검은 얼룩이 생겼는데 어떻게 지워요?"} placeholderTextColor={colors.disabledText}
             style={{ minHeight: 80, padding: space.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
               borderRadius: radius.button, borderCurve: "continuous", color: colors.text, textAlignVertical: "top", ...typography.body }} />
           <Button label="설명 더해서 다시 분석하기" icon="refresh" disabled={!note.trim() || busy} onPress={() => send(b64)} />

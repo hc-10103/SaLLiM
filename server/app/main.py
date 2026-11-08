@@ -89,6 +89,13 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
             return unknown_response()
         return assemble(c.item_key, store.items[c.item_key], region, c.state, c.confidence, area=area)
 
+    def photo_state(c: Classification, question: str | None) -> Classification:
+        # 사진에서 추정한 라벨·내용물·오염 상태는 확인된 답으로 기록하지 않는다.
+        # 사용자가 직접 적은 상태만 적용하고 나머지는 되묻는다.
+        if c.item_key in store.items:
+            c.state = infer_text_state(question or "", store.items[c.item_key])
+        return c
+
     def ask_provider(method, *args):
         try:
             return method(*args)
@@ -146,7 +153,7 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
         area = resolve_area(req.area_id)
         if req.image_base64:
             image = decode_image(req.image_base64)
-            return respond(ask_provider(provider.classify, image, store.items), region, area)
+            return respond(photo_state(ask_provider(provider.classify, image, store.items), req.question), region, area)
         key = match_text(req.question, store.items)
         if key:
             return respond(Classification(key, 1.0, infer_text_state(req.question, store.items[key])), region, area)
@@ -215,7 +222,9 @@ def create_app(store: data.Store | None = None, provider: VisionProvider | None 
                 and decision.classification.item_key is not None
                 and (intent is None or intent == "recycling")):
             item = store.items[decision.classification.item_key]
-            if req.question:
+            if image is not None:
+                photo_state(decision.classification, req.question)
+            elif req.question:
                 stated = infer_text_state(req.question, item)
                 if stated.is_dirty is True:
                     decision.classification.state.is_dirty = True

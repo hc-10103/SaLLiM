@@ -48,10 +48,15 @@ def infer_text_state(question: str, item: Item) -> ItemState:
     raw = extract_user_question(question)
     state = ItemState()
     if "has_label" in item.conditions:
-        if re.search(r"(?:라벨|테이프|송장|스티커|붙은\s*비닐).{0,20}(?:붙|안\s*떼|떼고|떼어|달려)", raw):
+        if re.search(r"(?:라벨|테이프|송장|스티커|붙은\s*비닐).{0,20}(?:붙|(?:안|못)\s*(?:떼|뗐)|달려)", raw):
             state.has_label = True
         elif re.search(r"(?:라벨|테이프|송장|스티커).{0,8}(?:없|제거했|떼었|뗐)", raw):
             state.has_label = False
+    if "has_contents" in item.conditions:
+        if re.search(r"(?:내용물|음료|액체|국물).{0,12}(?:남아|남았|들어|담겨|안\s*비웠)", raw):
+            state.has_contents = True
+        elif re.search(r"(?:내용물|음료|액체|국물).{0,12}(?:없|비웠|비운|버렸)", raw):
+            state.has_contents = False
     if "is_dirty" in item.conditions and re.search(
         r"(?:고추기름|기름|양념|소스|국물|음식물).{0,12}(?:묻|튀었|얼룩|오염|배었|밴|착색|범벅)", raw
     ) and not re.search(r"(?:안|않|없이)\s*묻", raw):

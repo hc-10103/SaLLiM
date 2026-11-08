@@ -73,6 +73,7 @@ export type AskResponse = {
   steps: string[];           // 배출 순서
   next_days: string[];       // 이 카테고리 배출 요일 예: ["화", "금"] (모르면 [])
   time: string | null;       // "18:00~24:00"
+  schedule_pending?: boolean; // 세척 상태에 따라 배출 방식이 달라 아직 요일을 정할 수 없음
   confident: boolean;
   confidence?: number | null; // 0~1, 사진 인식 확신도 (확신 낮음 화면 % 표시)
   follow_up: { key: keyof ItemState; question: string } | null;

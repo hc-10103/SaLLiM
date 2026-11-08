@@ -47,6 +47,20 @@ def test_dirty_pet_bottle_leads_with_general_waste(store):
     r = assemble("pet_bottle_clear", item, next(iter(store.regions.values())), state, 0.9)
     assert r.answer.startswith("오염된 투명 페트병이라면") and "일반쓰레기" in r.answer
     assert "일반쓰레기" in r.steps[0]
+    assert r.schedule_pending is True
+    assert r.next_days == [] and r.time is None
+
+
+def test_dirty_delivery_container_waits_for_disposal_choice(store):
+    from app.assemble import assemble
+    from app.match import infer_text_state
+    item = store.items["plastic_container"]
+    region = store.regions["seoul-gwanak"]
+    dirty = assemble("plastic_container", item, region,
+                     infer_text_state("고추기름이 묻은 배달용기", item), 1.0)
+    clean = assemble("plastic_container", item, region, confidence=1.0)
+    assert dirty.schedule_pending and dirty.next_days == [] and dirty.time is None
+    assert clean.schedule_pending is False and clean.next_days
 
 
 def test_mixed_bag_maps_to_general_waste_bag(store):

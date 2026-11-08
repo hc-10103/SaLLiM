@@ -105,7 +105,7 @@ export default function CameraViewfinder({ purpose, onPurpose, onShot, onPick, o
       {/* 가운데: 가이드 프레임 */}
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: space.md }}>
         <Text style={{ ...typography.bodyStrong, color: colors.onCamera, textAlign: "center" }}>
-          {cameraUsable ? "버릴 물건을 네모 안에 맞춰 주세요" : " "}
+          {cameraUsable ? (purpose === "recycling" ? "버릴 물건을 네모 안에 맞춰 주세요" : "도움이 필요한 상황을 네모 안에 담아 주세요") : " "}
         </Text>
         <View style={{ width: frame, height: frame, alignItems: "center", justifyContent: "center" }}>
           <Corners />
@@ -117,7 +117,8 @@ export default function CameraViewfinder({ purpose, onPurpose, onShot, onPick, o
                 {mountError ? "이 기기에서 카메라를 열 수 없어요" : "카메라 권한이 필요해요"}
               </Text>
               <Text style={{ ...typography.caption, color: "#CBD5E1", textAlign: "center" }}>
-                {mountError ? "아래 버튼으로 사진을 골라 주세요." : "물건을 찍어서 바로 배출 방법을 알려드려요."}
+                {mountError ? "아래 버튼으로 사진을 골라 주세요." : purpose === "recycling"
+                  ? "물건을 찍어서 배출 방법을 알려드려요." : "사진과 설명으로 생활 문제를 함께 살펴봐요."}
               </Text>
               {!mountError && (perm.canAskAgain
                 ? <Button label="카메라 허용하기" icon="camera" onPress={() => requestPerm()} style={{ marginTop: space.xs }} />
@@ -137,7 +138,7 @@ export default function CameraViewfinder({ purpose, onPurpose, onShot, onPick, o
 
       {/* 하단: 앨범 · 셔터 · (균형용 빈칸) */}
       <View style={{ paddingBottom: space.lg, paddingHorizontal: space.page, gap: space.md }}>
-        {regionLabel && (
+        {regionLabel && purpose === "recycling" && (
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
             <Icon name="pin" size={14} color="#CBD5E1" />
             <Text style={{ ...typography.caption, color: "#CBD5E1" }}>{regionLabel} 기준으로 안내해요</Text>
@@ -170,7 +171,7 @@ export default function CameraViewfinder({ purpose, onPurpose, onShot, onPick, o
             paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.pill,
             backgroundColor: pressed ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)" })}>
           <Icon name="search" size={16} color={colors.onCamera} />
-          <Text style={{ ...typography.label, color: colors.onCamera }}>이름으로 물어보기</Text>
+          <Text style={{ ...typography.label, color: colors.onCamera }}>{purpose === "recycling" ? "이름으로 물어보기" : "글로 물어보기"}</Text>
         </Pressable>
       </View>
     </View>

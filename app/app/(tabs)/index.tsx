@@ -98,6 +98,7 @@ export default function Home() {
     </View>
 
     {/* 오늘 배출 히어로 */}
+    <View style={{ position: "relative" }}>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: weekOpen }}
       accessibilityLabel={weekOpen ? "이번 주 배출 요일 접기" : "이번 주 배출 요일 보기"}
       onPress={() => setWeekOpen((v) => !v)}
@@ -110,13 +111,6 @@ export default function Home() {
           <Text style={{ ...typography.label, color: "#DBEAFE" }}>오늘의 배출</Text>
           <Text style={{ ...typography.display, color: colors.onPrimary }}>오늘은 {today}요일</Text>
         </View>
-        {/* 자취 생활 가이드 — 작은 노란 버튼 */}
-        <Pressable accessibilityRole="button" accessibilityLabel="자취 생활 가이드 보기" onPress={() => router.push("/guides")}
-          hitSlop={6} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: space.smPlus,
-            minHeight: 36, borderRadius: radius.pill, backgroundColor: pressed ? "#FCD34D" : "#FDE68A", marginBottom: 4 })}>
-          <Icon name="book" size={16} color="#78350F" />
-          <Text style={{ ...typography.caption, fontWeight: "800", color: "#78350F" }}>자취 가이드</Text>
-        </Pressable>
       </View>
       {loading ? <Text style={{ ...typography.label, color: "#DBEAFE" }}>일정을 불러오고 있어요…</Text>
         : hasSchedule ? (
@@ -149,6 +143,15 @@ export default function Home() {
         <Icon name={weekOpen ? "chevronUp" : "chevronDown"} size={16} color="#DBEAFE" />
       </View>
     </Pressable>
+    {/* 히어로 버튼과 별개로 눌러지는 가이드 버튼 */}
+    <Pressable accessibilityRole="button" accessibilityLabel="자취 생활 가이드 보기" onPress={() => router.push("/guides")}
+      hitSlop={6} style={({ pressed }) => ({ position: "absolute", top: space.md, right: space.md,
+        flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: space.smPlus,
+        minHeight: 36, borderRadius: radius.pill, backgroundColor: pressed ? "#FCD34D" : "#FDE68A" })}>
+      <Icon name="book" size={16} color="#78350F" />
+      <Text style={{ ...typography.caption, fontWeight: "800", color: "#78350F" }}>자취 가이드</Text>
+    </Pressable>
+    </View>
 
     {/* 이번 주 배출 요일 */}
     {weekOpen && <View style={{ gap: space.smPlus, marginTop: -space.sm }}>

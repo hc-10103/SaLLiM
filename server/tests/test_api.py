@@ -180,6 +180,36 @@ def test_explicit_recycling_photo_skips_intent_call():
     assert provider.answer_calls == 1
 
 
+@pytest.mark.parametrize("confidence", [0.4, 0.9])
+def test_photo_does_not_confirm_unseen_item_state(confidence):
+    from app import data
+    from app.main import create_app
+    from app.providers.base import AssistDecision, Classification
+    from app.schemas import ItemState
+
+    class PhotoProvider:
+        def assist(self, question, image, items):
+            return AssistDecision("recycling", Classification(
+                "pet_bottle_clear", confidence,
+                ItemState(has_label=False, has_contents=False, is_dirty=False),
+            ))
+
+    cc = TestClient(create_app(data.load(Path(__file__).parents[2] / "data"), PhotoProvider()))
+    payload = {"region_id": "seoul-gwanak", "purpose": "recycling", "image_base64": b64(b"photo")}
+    result = cc.post("/assist", json=payload).json()["recycling"]
+    assert result["answered_state"] == {
+        "has_label": None, "has_contents": None, "is_dirty": None, "is_coated": None,
+    }
+    if confidence > 0.6:
+        assert result["follow_up"]["key"] == "has_label"
+
+    payload["question"] = "라벨을 못 뗐어요. 안에 내용물이 남아 있어요. 기름이 묻었어요."
+    stated = cc.post("/assist", json=payload).json()["recycling"]
+    assert stated["answered_state"]["has_label"] is True
+    assert stated["answered_state"]["has_contents"] is True
+    assert stated["answered_state"]["is_dirty"] is True
+
+
 def test_assist_two_cartons_have_separate_official_answers():
     from pathlib import Path
     from app import data

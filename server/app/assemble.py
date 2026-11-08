@@ -137,6 +137,7 @@ def assemble(item_key: str, item: Item, region: RegionData,
             item_key=item_key, item_name=item.name, category=None,
             answer=answer, steps=[], next_days=[], time=None,
             confident=False, confidence=round(confidence, 2), follow_up=None, sources=[], note=None,
+            answered_state=state,
         )
 
     if (item_key != "plastic_container" and state.is_dirty is True
@@ -149,10 +150,14 @@ def assemble(item_key: str, item: Item, region: RegionData,
                      "일반쓰레기(종량제 봉투)로 배출하기")
         notes = []  # 조건은 결론과 마지막 단계에 이미 반영했다.
 
+    schedule_pending = (state.is_dirty is True and item.category in RECYCLING_CATEGORIES
+                        and "일반쓰레기" in item.conditions.get("is_dirty", ""))
+
     return AskResponse(
         item_key=item_key, item_name=item.name, category=item.category,
-        answer=answer, steps=steps + notes, next_days=days,
-        time=sched_time if days else None,
+        answer=answer, steps=steps + notes, next_days=[] if schedule_pending else days,
+        time=sched_time if days and not schedule_pending else None,
+        schedule_pending=schedule_pending,
         confident=confident, confidence=round(confidence, 2), follow_up=follow_up,
         sources=_dedupe([*item.sources, *extra_sources]),
         note=sched_note,

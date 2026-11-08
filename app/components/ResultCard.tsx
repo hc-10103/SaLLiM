@@ -8,6 +8,7 @@ import FollowUpSheet from "./FollowUpSheet";
 import Thumb from "./Thumb";
 import { photoForCategory } from "../lib/photos";
 import { toggleFavorite, useIsFavorite } from "../lib/favorites";
+import { daysForMyScheduleCategory, hasMyScheduleCategory, scheduleTime, useMySchedule } from "../lib/mySchedule";
 import Icon from "./Icon";
 import { Button, Notice } from "./ui";
 import { colors, radius, shadow, space, typography } from "../theme";
@@ -41,6 +42,7 @@ export default function ResultCard({ result: r, regionId, areaId, onChange, auto
   const [sheetOpen, setSheetOpen] = useState(autoOpenFollowUp && !!r.follow_up);
   const state = r.answered_state ?? {};
   const saved = useIsFavorite("item", r.item_key);
+  const { schedule: mySchedule, ready: myScheduleReady } = useMySchedule();
 
   async function answer(yes: boolean) {
     if (!r.item_key || !r.follow_up || busy !== null) return;
@@ -61,6 +63,11 @@ export default function ResultCard({ result: r, regionId, areaId, onChange, auto
   const answeredKeys = (Object.keys(state) as (keyof ItemState)[]).filter((k) => typeof state[k] === "boolean");
   const displaySteps = r.steps.length > 1 ? r.steps.filter((s) => !r.answer.includes(s)) : r.steps;
   const firstSource = r.sources[0];
+  const myDays = mySchedule && hasMyScheduleCategory(r.category)
+    ? daysForMyScheduleCategory(mySchedule, r.category) : null;
+  const useMyDays = !r.schedule_pending && myScheduleReady && myDays !== null;
+  const shownDays = useMyDays && myDays ? myDays : r.next_days;
+  const shownTime = useMyDays ? scheduleTime(mySchedule) : r.time;
 
   return (
     <View style={{ gap: space.md, padding: space.md, borderRadius: radius.lg, borderCurve: "continuous", backgroundColor: colors.surface,
@@ -92,7 +99,13 @@ export default function ResultCard({ result: r, regionId, areaId, onChange, auto
           <View style={{ flexDirection: "row", gap: space.md, alignItems: "flex-start" }}>
             <View style={{ flex: 1, gap: space.sm }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                {r.category ? <CategoryBadge category={r.category} /> : <View />}
+                {r.schedule_pending ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: space.smPlus,
+                    paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.warnBg }}>
+                    <Icon name="warning" size={15} color={colors.warn} />
+                    <Text style={{ ...typography.caption, fontWeight: "700", color: colors.warn }}>배출 방식 확인 필요</Text>
+                  </View>
+                ) : r.category ? <CategoryBadge category={r.category} /> : <View />}
                 {showBookmark && <Pressable accessibilityRole="button" accessibilityState={{ selected: saved }}
                   accessibilityLabel={saved ? "즐겨찾기에서 빼기" : "즐겨찾기에 추가"} hitSlop={8}
                   onPress={() => r.item_key && r.item_name && toggleFavorite({ kind: "item", key: r.item_key,
@@ -118,11 +131,20 @@ export default function ResultCard({ result: r, regionId, areaId, onChange, auto
             <Icon name="calendar" size={22} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ ...typography.caption, color: colors.subtext }}>다음 배출</Text>
-            <Text style={{ ...typography.bodyStrong, color: colors.text }}>
-              {r.next_days.length ? `${r.next_days.join(" · ")}요일` : "배출 요일 확인 필요"}
-              {"  "}<Text style={{ color: colors.primary }}>{r.time ?? "시간 확인 필요"}</Text>
+            <Text style={{ ...typography.caption, color: colors.subtext }}>
+              {r.schedule_pending ? "배출 요일 확인" : useMyDays ? "다음 배출 · 우리 집 기준" : "다음 배출"}
             </Text>
+            <Text style={{ ...typography.bodyStrong, color: colors.text }}>
+              {r.schedule_pending ? "세척 결과에 따라 달라져요" : (
+                !myScheduleReady ? "배출 요일을 확인하는 중이에요" :
+                useMyDays && !shownDays.length ? "이 품목의 요일을 설정하지 않았어요" :
+                <>{shownDays.length ? `${shownDays.join(" · ")}요일` : "배출 요일 확인 필요"}
+                  {"  "}<Text style={{ color: colors.primary }}>{shownTime ?? (useMyDays ? "시간 미설정" : "시간 확인 필요")}</Text></>
+              )}
+            </Text>
+            {r.schedule_pending && <Text style={{ ...typography.caption, color: colors.subtext }}>
+              깨끗해지면 재활용, 오염이 남으면 일반쓰레기 요일을 확인해 주세요.
+            </Text>}
           </View>
         </View>
       )}

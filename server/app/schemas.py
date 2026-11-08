@@ -97,6 +97,7 @@ class AskResponse(BaseModel):
     steps: list[str]
     next_days: list[str]
     time: str | None
+    schedule_pending: bool = False  # 세척 결과에 따라 배출 방식이 달라 아직 요일을 정할 수 없음
     confident: bool
     confidence: float | None = None  # 0~1, 사진 인식 확신도 (확신 낮음 화면에 % 표시)
     follow_up: FollowUp | None
